@@ -111,6 +111,11 @@ export class ReviewService {
     const repo = await this.repo.getRepo(pull.repoId);
     if (!repo) throw new NotFoundError('Repo not found');
 
+    // One multi_agent_runs row per trigger (whether it fans out to one agent
+    // or all enabled agents) — lets the PR list sum cost over "this review"
+    // instead of every run ever made against the PR.
+    const multiAgentRunId = await this.repo.createMultiAgentRun({ workspaceId, prId });
+
     // Create the agent_run rows up front so a runId is available IMMEDIATELY —
     // the client persists these in global state and subscribes to the SSE
     // stream. The actual (slow) review runs in the background below.
@@ -123,6 +128,7 @@ export class ReviewService {
         prId,
         provider: agent.provider,
         model: agent.model,
+        multiAgentRunId,
       });
       runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
       jobs.push({ agent, runId });

@@ -91,6 +91,8 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "cost": "Cost",
+      "costTooltip": "Cost of the latest review",
       "status": "Status",
       "updated": "Updated"
     },

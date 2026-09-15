@@ -137,6 +137,12 @@ export class ReviewRepository {
 
   // ---- observability: agent_runs + run_traces ----------------------------
 
+  /** Create a multi_agent_runs row grouping the runs of one review trigger,
+   *  so their cost can be summed as a batch (PR-list COST column). */
+  createMultiAgentRun(values: { workspaceId: string; prId: string }): Promise<string> {
+    return runRepo.createMultiAgentRun(this.db, values);
+  }
+
   /** Create an agent_runs row in `running` state; returns its id (= the runId). */
   createAgentRun(values: {
     workspaceId: string;
@@ -144,6 +150,7 @@ export class ReviewRepository {
     prId: string;
     provider: string | null;
     model: string | null;
+    multiAgentRunId: string | null;
   }): Promise<string> {
     return runRepo.createAgentRun(this.db, values);
   }
@@ -163,6 +170,8 @@ export class ReviewRepository {
       blockers?: number | null;
       /** Failure reason (status='failed') / cancellation note. Null clears it. */
       error?: string | null;
+      /** USD cost of this run; null when unpriced or the run didn't complete. */
+      costUsd?: number | null;
     },
   ): Promise<void> {
     return runRepo.completeAgentRun(this.db, runId, values);

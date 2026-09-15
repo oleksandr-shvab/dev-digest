@@ -59,6 +59,7 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
@@ -112,6 +113,19 @@ export async function reapStaleRunningRuns(db: Db): Promise<number> {
 
 // ---- observability: agent_runs + run_traces -------------------------------
 
+/** Create a multi_agent_runs row grouping the runs of one review trigger
+ *  (one agent or all-enabled-agents), so their cost can be summed as a batch. */
+export async function createMultiAgentRun(
+  db: Db,
+  values: { workspaceId: string; prId: string },
+): Promise<string> {
+  const [row] = await db
+    .insert(t.multiAgentRuns)
+    .values({ workspaceId: values.workspaceId, prId: values.prId })
+    .returning({ id: t.multiAgentRuns.id });
+  return row!.id;
+}
+
 /** Create an agent_runs row in `running` state; returns its id (= the runId). */
 export async function createAgentRun(
   db: Db,
@@ -121,6 +135,7 @@ export async function createAgentRun(
     prId: string;
     provider: string | null;
     model: string | null;
+    multiAgentRunId: string | null;
   },
 ): Promise<string> {
   const [row] = await db
@@ -131,6 +146,7 @@ export async function createAgentRun(
       prId: values.prId,
       provider: values.provider,
       model: values.model,
+      multiAgentRunId: values.multiAgentRunId,
       status: 'running',
       source: 'local',
     })
@@ -154,6 +170,8 @@ export async function completeAgentRun(
     blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
+    /** USD cost of this run; null when unpriced or the run didn't complete. */
+    costUsd?: number | null;
   },
 ): Promise<void> {
   await db
@@ -168,6 +186,7 @@ export async function completeAgentRun(
       score: values.score ?? null,
       blockers: values.blockers ?? null,
       error: values.error ?? null,
+      costUsd: values.costUsd ?? null,
     })
     .where(eq(t.agentRuns.id, runId));
 }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
@@ -12,12 +12,20 @@ export const agentRuns = pgTable('agent_runs', {
     .references(() => workspaces.id, { onDelete: 'cascade' }),
   agentId: uuid('agent_id').references(() => agents.id, { onDelete: 'set null' }),
   prId: uuid('pr_id').references(() => pullRequests.id, { onDelete: 'set null' }),
+  /** The multi-agent trigger this run belongs to; null for runs that predate
+      batching (treated as a batch of one). */
+  multiAgentRunId: uuid('multi_agent_run_id').references(() => multiAgentRuns.id, {
+    onDelete: 'set null',
+  }),
   ranAt: timestamp('ran_at', { withTimezone: true }).defaultNow().notNull(),
   provider: text('provider'),
   model: text('model'),
   durationMs: integer('duration_ms'),
   tokensIn: integer('tokens_in'),
   tokensOut: integer('tokens_out'),
+  /** USD cost of this run; null when any priced call had unknown pricing, or
+      the run never completed (failed/cancelled/running). */
+  costUsd: doublePrecision('cost_usd'),
   status: text('status'),
   /** Failure reason when status='failed' (LLM/API error, timeout, quota, …). */
   error: text('error'),

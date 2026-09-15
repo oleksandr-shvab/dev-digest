@@ -129,6 +129,42 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Latest-review COST per PR for the list's COST column: sum of cost_usd
+    // over the NEWEST BATCH of runs — runs fired by one review trigger, keyed
+    // by multi_agent_run_id (or the run's own id, for pre-batching runs).
+    // NULL entries are skipped rather than treated as 0; the PR reads null
+    // only when it has no runs, or every run in that batch is unpriced.
+    const latestCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          multiAgentRunId: t.agentRuns.multiAgentRunId,
+          id: t.agentRuns.id,
+          costUsd: t.agentRuns.costUsd,
+        })
+        .from(t.agentRuns)
+        .where(and(eq(t.agentRuns.workspaceId, workspaceId), inArray(t.agentRuns.prId, prIds)))
+        .orderBy(desc(t.agentRuns.ranAt));
+      // Rows are newest-first → the first row seen per PR pins that PR's
+      // latest-batch key; only rows sharing that key are summed.
+      const batchKeyByPr = new Map<string, string>();
+      for (const run of runRows) {
+        if (!run.prId) continue;
+        const batchKey = run.multiAgentRunId ?? run.id;
+        const pinnedKey = batchKeyByPr.get(run.prId);
+        if (pinnedKey === undefined) {
+          batchKeyByPr.set(run.prId, batchKey);
+          latestCostByPr.set(run.prId, null);
+        } else if (batchKey !== pinnedKey) {
+          continue;
+        }
+        if (run.costUsd != null) {
+          latestCostByPr.set(run.prId, (latestCostByPr.get(run.prId) ?? 0) + run.costUsd);
+        }
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +189,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: latestCostByPr.get(r.id) ?? null,
       };
     });
   });

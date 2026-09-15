@@ -17,9 +17,12 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * workspace/user and the demo fixtures.
  *
  * Seeds: default workspace + system user + membership, default settings,
- * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * demo repo (acme/payments-api), the three built-in agents (General +
+ * Security + Performance, all on the default openrouter/deepseek-v4-flash
+ * provider+model), and PR #482 with files/commits, a sample review with a
+ * few findings, and a finished multi-agent run batch (so the PR list COST
+ * column, the Agent Runs timeline, and a run's trace drawer all have real
+ * data to show without needing an LLM key).
  *
  * Course lessons populate the other tables (skills, conventions, memory, eval,
  * …) once their features are built — they start empty here.
@@ -90,6 +93,65 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .returning();
   }
   const repoId = repo!.id;
+
+  // ---- built-in agents (the three starter presets) ----
+  // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
+  // Seeded BEFORE PR #482 below, which references these agents' ids when
+  // seeding a demo agent_runs batch.
+  const seedAgents: Array<typeof t.agents.$inferInsert> = [
+    {
+      workspaceId,
+      name: 'General Reviewer',
+      description: 'Reviews a PR diff for bugs, correctness, and clarity.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: GENERAL_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'Security Reviewer',
+      description: 'Flags secrets, injection, SSRF and the lethal trifecta before merge.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: SECURITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'Performance Reviewer',
+      description: 'Catches N+1 queries, missing indexes, and hot-path allocations.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: PERFORMANCE_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+  ];
+  for (const a of seedAgents) {
+    const [existing] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
+    if (!existing) await db.insert(t.agents).values(a);
+  }
+  const [generalAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'General Reviewer')));
+  const [securityAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
+  const [performanceAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Performance Reviewer')));
 
   // ---- PR #482 (rate limiting) ----
   let [pr] = await db
@@ -173,51 +235,111 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         confidence: 0.86,
       },
     ]);
-  }
 
-  // ---- built-in agents (the three starter presets) ----
-  // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
-  const seedAgents: Array<typeof t.agents.$inferInsert> = [
-    {
-      workspaceId,
-      name: 'General Reviewer',
-      description: 'Reviews a PR diff for bugs, correctness, and clarity.',
-      provider: DEFAULT_PROVIDER,
-      model: DEFAULT_MODEL,
-      systemPrompt: GENERAL_REVIEWER_PROMPT,
-      enabled: true,
-      version: 1,
-      createdBy: userId,
-    },
-    {
-      workspaceId,
-      name: 'Security Reviewer',
-      description: 'Flags secrets, injection, SSRF and the lethal trifecta before merge.',
-      provider: DEFAULT_PROVIDER,
-      model: DEFAULT_MODEL,
-      systemPrompt: SECURITY_REVIEWER_PROMPT,
-      enabled: true,
-      version: 1,
-      createdBy: userId,
-    },
-    {
-      workspaceId,
-      name: 'Performance Reviewer',
-      description: 'Catches N+1 queries, missing indexes, and hot-path allocations.',
-      provider: DEFAULT_PROVIDER,
-      model: DEFAULT_MODEL,
-      systemPrompt: PERFORMANCE_REVIEWER_PROMPT,
-      enabled: true,
-      version: 1,
-      createdBy: userId,
-    },
-  ];
-  for (const a of seedAgents) {
-    const [existing] = await db
-      .select()
-      .from(t.agents)
-      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
-    if (!existing) await db.insert(t.agents).values(a);
+    // A finished multi-agent run batch against this PR — gives the PR list's
+    // COST column, the PR page's Agent Runs timeline, and a run's trace
+    // drawer real (non-empty) data to render without needing an LLM key.
+    // Mirrors the course's mock: Security + Performance done, General failed
+    // on a quota error. Numbers are illustrative, not derived from a real
+    // call (see server/specs/run-cost-attribution.md).
+    const [batch] = await db
+      .insert(t.multiAgentRuns)
+      .values({ workspaceId, prId: pr!.id })
+      .returning();
+
+    const [securityRun] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        prId: pr!.id,
+        agentId: securityAgent!.id,
+        multiAgentRunId: batch!.id,
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        status: 'done',
+        durationMs: 8200,
+        tokensIn: 9119,
+        tokensOut: 1187,
+        costUsd: 0.0013,
+        findingsCount: 3,
+        blockers: 2,
+        grounding: '3/3 passed',
+        score: 61,
+      })
+      .returning();
+
+    // A persisted trace document for the Security Reviewer run so its trace
+    // drawer (Stats → COST tile) has something to render, not just the
+    // agent_runs row. Numbers match the row above.
+    await db.insert(t.runTraces).values({
+      runId: securityRun!.id,
+      trace: {
+        config: {
+          agent: 'Security Reviewer',
+          version: '1',
+          provider: DEFAULT_PROVIDER,
+          model: DEFAULT_MODEL,
+          pr: 482,
+          source: 'local',
+        },
+        stats: {
+          duration_ms: 8200,
+          tokens_in: 9119,
+          tokens_out: 1187,
+          cost_usd: 0.0013,
+          findings: 3,
+          grounding: '3/3 passed',
+        },
+        prompt_assembly: {
+          system: SECURITY_REVIEWER_PROMPT,
+          user: 'Review the diff for src/config.ts, src/middleware/ratelimit.ts, src/api/public/webhooks.ts, src/api/users.ts.',
+        },
+        tool_calls: [{ tool: 'read_file', args: "'src/config.ts'", meta: '1,240 bytes', ms: 120 }],
+        raw_output: '{"verdict":"request_changes","score":61}',
+        memory_pulled: [],
+        specs_read: [],
+        log: [
+          { t: '00.00', kind: 'info', msg: 'Starting review with agent "Security Reviewer"' },
+          { t: '08.20', kind: 'result', msg: 'Citation grounding: 3/3 passed' },
+        ],
+      },
+    });
+
+    await db.insert(t.agentRuns).values([
+      {
+        workspaceId,
+        prId: pr!.id,
+        agentId: performanceAgent!.id,
+        multiAgentRunId: batch!.id,
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        status: 'done',
+        durationMs: 6400,
+        tokensIn: 12011,
+        tokensOut: 1420,
+        costUsd: 0.0014,
+        findingsCount: 2,
+        blockers: 0,
+        grounding: '2/2 passed',
+        score: 64,
+      },
+      {
+        workspaceId,
+        prId: pr!.id,
+        agentId: generalAgent!.id,
+        multiAgentRunId: batch!.id,
+        provider: 'openai',
+        model: 'gpt-4.1',
+        status: 'failed',
+        durationMs: 400,
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: null,
+        findingsCount: 0,
+        grounding: '0/0 passed',
+        error: '429 You exceeded your current quota, please check your plan and billing details.',
+      },
+    ]);
   }
 
   return { workspaceId, userId };
