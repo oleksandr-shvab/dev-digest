@@ -10,6 +10,7 @@ import { formatUsd } from "@/lib/cost";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+import { FindingCounts } from "../FindingCounts";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -53,6 +54,9 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         ) : (
           <span style={s.muted}>—</span>
         )}
+      </div>
+      <div>
+        <FindingCounts counts={pr.finding_counts} />
       </div>
       <div className="mono" style={pr.cost_usd != null ? s.costCell : s.muted}>
         {formatUsd(pr.cost_usd)}

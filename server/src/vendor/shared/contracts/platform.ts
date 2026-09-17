@@ -154,6 +154,13 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+export const FindingCounts = z.object({
+  CRITICAL: z.number().int(),
+  WARNING: z.number().int(),
+  SUGGESTION: z.number().int(),
+});
+export type FindingCounts = z.infer<typeof FindingCounts>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -174,6 +181,10 @@ export const PrMeta = z.object({
   // only); null/absent when no run of that review had a known price, or the
   // PR has no runs yet.
   cost_usd: z.number().nullish(),
+  // Non-dismissed finding counts by severity, summed over the latest review
+  // batch (list endpoint only); null/absent when the PR has no runs yet, or
+  // its newest batch hasn't produced a review yet.
+  finding_counts: FindingCounts.nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

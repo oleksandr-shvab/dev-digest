@@ -101,7 +101,13 @@ export default function PullsPage() {
             <div
               key={key}
               style={s.headCell(i === COLUMN_KEYS.length - 1)}
-              title={key === "cost" ? t("list.columns.costTooltip") : undefined}
+              title={
+                key === "cost"
+                  ? t("list.columns.costTooltip")
+                  : key === "findings"
+                    ? t("list.columns.findingsTooltip")
+                    : undefined
+              }
             >
               {t(`list.columns.${key}`)}
             </div>

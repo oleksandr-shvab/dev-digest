@@ -14,6 +14,17 @@ true, but only on explicit request.
 
 ## What Doesn't Work
 
+- **2026-09-17** — Grepping `routes.ts`/the route handler for existing
+  aggregation logic missed a relevant pure helper: `rollupSeverities` /
+  `SeverityCounts` in `server/src/modules/pulls/status.ts` already tallied
+  finding severities into `{critical,warning,suggestion}`, fully unit-tested
+  in `server/test/pulls-status.test.ts`, but was never called from any
+  route — dead code sitting exactly on-topic for the PR-list FINDINGS
+  feature. Found it only by reading the *test* file's `describe` blocks, not
+  by searching the route. Before writing a new aggregation helper in a
+  module, grep that module's own `*.test.ts` files too — a tested-but-unused
+  pure function is easy to miss by reading routes/services alone.
+
 ## Codebase Patterns
 
 - **2026-09-15** — `agent_runs` (list/summary fields) and `run_traces`
@@ -23,6 +34,14 @@ true, but only on explicit request.
   404s (`Run trace not found`) unless you also `db.insert(t.runTraces)`
   for that same run id. See the Security Reviewer run seeded in
   `server/src/db/seed.ts` for the pattern (both inserts, same `runId`).
+- **2026-09-17** — The seeded PR #482 demo `reviews` row
+  (`server/src/db/seed.ts`) was created with `runId: null, agentId: null` —
+  disconnected from the seeded Security Reviewer `agent_runs` row even
+  though both exist in the same seed. Any read that scopes "the latest
+  review" by run id (not just by PR id) will treat the seed PR as
+  unreviewed unless the seed links them explicitly. Fixed by inserting the
+  batch + `agent_runs` row *before* the review and setting
+  `review.runId`/`review.agentId` from it.
 
 ## Tool & Library Notes
 

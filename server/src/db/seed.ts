@@ -194,12 +194,49 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       author: 'marisa.koch',
     });
 
-    // a sample review + findings so the PR shows results before the first run
+    // A finished multi-agent run batch against this PR — gives the PR list's
+    // COST column, the PR page's Agent Runs timeline, and a run's trace
+    // drawer real (non-empty) data to render without needing an LLM key.
+    // Mirrors the course's mock: Security + Performance done, General failed
+    // on a quota error. Numbers are illustrative, not derived from a real
+    // call (see server/specs/run-cost-attribution.md).
+    const [batch] = await db
+      .insert(t.multiAgentRuns)
+      .values({ workspaceId, prId: pr!.id })
+      .returning();
+
+    const [securityRun] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        prId: pr!.id,
+        agentId: securityAgent!.id,
+        multiAgentRunId: batch!.id,
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        status: 'done',
+        durationMs: 8200,
+        tokensIn: 9119,
+        tokensOut: 1187,
+        costUsd: 0.0013,
+        findingsCount: 3,
+        blockers: 2,
+        grounding: '3/3 passed',
+        score: 61,
+      })
+      .returning();
+
+    // A sample review + findings so the PR shows results before the first
+    // run — linked to the Security Reviewer run above (agentId/runId) so the
+    // PR list's FINDINGS column reads from it too (see
+    // server/specs/pr-list-finding-counts.md), not just "—".
     const [review] = await db
       .insert(t.reviews)
       .values({
         workspaceId,
         prId: pr!.id,
+        agentId: securityAgent!.id,
+        runId: securityRun!.id,
         kind: 'review',
         verdict: 'request_changes',
         summary:
@@ -235,38 +272,6 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         confidence: 0.86,
       },
     ]);
-
-    // A finished multi-agent run batch against this PR — gives the PR list's
-    // COST column, the PR page's Agent Runs timeline, and a run's trace
-    // drawer real (non-empty) data to render without needing an LLM key.
-    // Mirrors the course's mock: Security + Performance done, General failed
-    // on a quota error. Numbers are illustrative, not derived from a real
-    // call (see server/specs/run-cost-attribution.md).
-    const [batch] = await db
-      .insert(t.multiAgentRuns)
-      .values({ workspaceId, prId: pr!.id })
-      .returning();
-
-    const [securityRun] = await db
-      .insert(t.agentRuns)
-      .values({
-        workspaceId,
-        prId: pr!.id,
-        agentId: securityAgent!.id,
-        multiAgentRunId: batch!.id,
-        provider: DEFAULT_PROVIDER,
-        model: DEFAULT_MODEL,
-        status: 'done',
-        durationMs: 8200,
-        tokensIn: 9119,
-        tokensOut: 1187,
-        costUsd: 0.0013,
-        findingsCount: 3,
-        blockers: 2,
-        grounding: '3/3 passed',
-        score: 61,
-      })
-      .returning();
 
     // A persisted trace document for the Security Reviewer run so its trace
     // drawer (Stats → COST tile) has something to render, not just the

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
@@ -142,6 +142,60 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     const poll = await app.inject({ method: 'POST', url: `/repos/${repoId}/poll` });
     expect(poll.json().reviewTriggered).toBe(false);
     expect(poll.json().synced).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it('GET /repos/:id/pulls returns per-severity finding_counts for the latest batch', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const repos = await app.inject({ method: 'GET', url: '/repos' });
+    const repoId = repos
+      .json()
+      .find((r: { full_name: string }) => r.full_name === 'acme/payments-api').id;
+
+    // The seed's demo review is now linked to the Security Reviewer run
+    // (server/src/db/seed.ts), so it reads real counts, not "—".
+    const pulls = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
+    const pr482 = pulls.json().find((p: { number: number }) => p.number === 482);
+    expect(pr482.finding_counts).toEqual({ CRITICAL: 1, WARNING: 1, SUGGESTION: 0 });
+
+    // Dismissing the WARNING finding drops it from the count, but the
+    // CRITICAL one (untouched) still counts — matches the "blockers"
+    // triage semantics used elsewhere (ReviewRunAccordion).
+    const [seedReview] = await pg.handle.db
+      .select({ id: t.reviews.id })
+      .from(t.reviews)
+      .where(and(eq(t.reviews.prId, pr482.id), eq(t.reviews.kind, 'review')));
+    await pg.handle.db
+      .update(t.findings)
+      .set({ dismissedAt: new Date() })
+      .where(and(eq(t.findings.reviewId, seedReview!.id), eq(t.findings.severity, 'WARNING')));
+    const afterDismiss = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
+    const pr482AfterDismiss = afterDismiss
+      .json()
+      .find((p: { number: number }) => p.number === 482);
+    expect(pr482AfterDismiss.finding_counts).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
+
+    // A brand-new (failed, no review yet) batch supersedes the old one —
+    // the list must not keep showing the superseded batch's counts.
+    await pg.handle.db.insert(t.agentRuns).values({
+      workspaceId: (await pg.handle.db.select().from(t.workspaces))[0]!.id,
+      prId: pr482.id,
+      provider: 'openai',
+      model: 'gpt-4.1',
+      status: 'failed',
+      error: 'boom',
+    });
+    const afterNewBatch = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
+    const pr482AfterNewBatch = afterNewBatch
+      .json()
+      .find((p: { number: number }) => p.number === 482);
+    expect(pr482AfterNewBatch.finding_counts).toBeNull();
+
     await app.close();
   });
 });

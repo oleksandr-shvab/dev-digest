@@ -109,10 +109,8 @@ DURATION   TOKENS       COST     FINDINGS
 
 ## Out of scope
 
-- A FINDINGS column in the PR list. The design mock shows one, but the server
-  deliberately does not surface the per-severity breakdown on the list
-  endpoint (see the comment in `server/src/modules/pulls/routes.ts`) — findings
-  live on the PR detail page. Adding it is a separate feature.
+- A FINDINGS column in the PR list. Added by a separate feature — see
+  [`pr-list-finding-counts.md`](pr-list-finding-counts.md).
 - The per-row "Run Review" button and the `Auto-review: ON` / `Triage queue` /
   `Review all` header controls visible in the mock.
 - Cost anywhere outside these three surfaces (Eval Dashboard, CI Runs, Agent

@@ -91,10 +91,17 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
+      "findingsTooltip": "Findings in the latest review (dismissed excluded)",
       "cost": "Cost",
       "costTooltip": "Cost of the latest review",
       "status": "Status",
       "updated": "Updated"
+    },
+    "findingsItem": {
+      "CRITICAL": "{count} critical",
+      "WARNING": "{count} warning",
+      "SUGGESTION": "{count} suggestion"
     },
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",

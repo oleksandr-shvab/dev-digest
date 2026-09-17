@@ -1,13 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import type { PrMeta, PrDetail, GitHubClient, PrReviewComment, FindingCounts } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
+import { pickLatestBatchByPr, aggregateFindingCounts } from './latest-batch.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -113,8 +114,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
     if (prIds.length > 0) {
@@ -129,12 +129,13 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review COST per PR for the list's COST column: sum of cost_usd
-    // over the NEWEST BATCH of runs — runs fired by one review trigger, keyed
-    // by multi_agent_run_id (or the run's own id, for pre-batching runs).
-    // NULL entries are skipped rather than treated as 0; the PR reads null
-    // only when it has no runs, or every run in that batch is unpriced.
+    // Latest-review batch per PR — the NEWEST BATCH of runs (runs fired by
+    // one review trigger, keyed by multi_agent_run_id, or the run's own id
+    // for pre-batching runs). Shared by the COST sum and the FINDINGS count
+    // below so the two columns can never disagree about "the latest review".
+    // See server/specs/pr-list-finding-counts.md.
     const latestCostByPr = new Map<string, number | null>();
+    const latestBatchRunIds: string[] = [];
     if (prIds.length > 0) {
       const runRows = await container.db
         .select({
@@ -146,23 +147,42 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         .from(t.agentRuns)
         .where(and(eq(t.agentRuns.workspaceId, workspaceId), inArray(t.agentRuns.prId, prIds)))
         .orderBy(desc(t.agentRuns.ranAt));
-      // Rows are newest-first → the first row seen per PR pins that PR's
-      // latest-batch key; only rows sharing that key are summed.
-      const batchKeyByPr = new Map<string, string>();
-      for (const run of runRows) {
-        if (!run.prId) continue;
-        const batchKey = run.multiAgentRunId ?? run.id;
-        const pinnedKey = batchKeyByPr.get(run.prId);
-        if (pinnedKey === undefined) {
-          batchKeyByPr.set(run.prId, batchKey);
-          latestCostByPr.set(run.prId, null);
-        } else if (batchKey !== pinnedKey) {
-          continue;
+      const batchByPr = pickLatestBatchByPr(runRows);
+      // NULL costs are skipped rather than treated as 0; the PR reads null
+      // only when it has no runs, or every run in that batch is unpriced.
+      for (const [prId, runs] of batchByPr) {
+        let sum: number | null = null;
+        for (const run of runs) {
+          latestBatchRunIds.push(run.id);
+          if (run.costUsd != null) sum = (sum ?? 0) + run.costUsd;
         }
-        if (run.costUsd != null) {
-          latestCostByPr.set(run.prId, (latestCostByPr.get(run.prId) ?? 0) + run.costUsd);
-        }
+        latestCostByPr.set(prId, sum);
       }
+    }
+
+    // FINDINGS per PR: non-dismissed finding counts by severity, over the
+    // `kind: 'review'` rows produced by the latest batch's runs. A PR absent
+    // from the map has no review yet in its latest batch (renders as "—");
+    // a PR present with all-zero counts has been reviewed with nothing
+    // outstanding.
+    let findingCountsByPr = new Map<string, FindingCounts>();
+    if (latestBatchRunIds.length > 0) {
+      const reviewRows = await container.db
+        .select({ prId: t.reviews.prId })
+        .from(t.reviews)
+        .where(and(inArray(t.reviews.runId, latestBatchRunIds), eq(t.reviews.kind, 'review')));
+      const findingRows = await container.db
+        .select({ prId: t.reviews.prId, severity: t.findings.severity })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+        .where(
+          and(
+            inArray(t.reviews.runId, latestBatchRunIds),
+            eq(t.reviews.kind, 'review'),
+            isNull(t.findings.dismissedAt),
+          ),
+        );
+      findingCountsByPr = aggregateFindingCounts(reviewRows, findingRows);
     }
 
     const now = Date.now();
@@ -190,6 +210,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: latestCostByPr.get(r.id) ?? null,
+        finding_counts: findingCountsByPr.get(r.id) ?? null,
       };
     });
   });
