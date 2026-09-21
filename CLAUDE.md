@@ -33,7 +33,7 @@ Each module folder above has its own `CLAUDE.md` (auto-loaded when you touch
 files inside it) plus `docs/`, `specs/`, and `insights.md` — see the bottom of
 this file.
 
-## Conventions
+## Conventions (not obvious from code)
 
 - `@devdigest/shared` and `@devdigest/ui` are **not real packages** — they're
   vendored copies duplicated into `server/src/vendor/*` and `client/src/vendor/*`.
@@ -50,7 +50,7 @@ this file.
   your DB; it deletes every imported repo/review. See `e2e/README.md` for the
   hermetic alternative used by e2e.
 
-## Session protocol
+## Session protocol (before answering)
 
 **Before starting work on a task**, read the `insights.md` of every module
 the task touches (routing table in
@@ -62,6 +62,16 @@ they contradict this file or the code in front of you.
 **When the task ends**, run the `engineering-insights` skill. It appends
 only what is substantive and not already recorded — writing nothing is the
 correct outcome for a routine task. Do not skip the check.
+
+## Use when
+
+- Whole-repo map, run commands → read this file or [`README.md`](README.md)
+- Module internals (routes, components, schema, endpoints) → read that
+  module's own `CLAUDE.md` (linked below)
+- Deep-dives → that module's `docs/` · UI/flow specs → that module's
+  `specs/` · gotchas/decisions → that module's `insights.md`
+- Cross-cutting or infra learnings (Docker, migrations, CI, shared
+  vendoring) → root [`insights.md`](insights.md)
 
 ## Module docs
 
