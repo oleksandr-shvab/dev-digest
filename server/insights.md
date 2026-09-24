@@ -24,6 +24,9 @@ true, but only on explicit request.
   by searching the route. Before writing a new aggregation helper in a
   module, grep that module's own `*.test.ts` files too — a tested-but-unused
   pure function is easy to miss by reading routes/services alone.
+- **2026-09-21** — Correction of the entry above: `rollupSeverities` is no
+  longer dead code — it's now called from
+  `server/src/modules/pulls/latest-batch.ts:76`.
 
 ## Codebase Patterns
 

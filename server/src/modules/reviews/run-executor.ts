@@ -213,45 +213,46 @@ export class ReviewRunExecutor {
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
-
-      // ---- Persist review + findings ----------------------------------------
-      const review = await this.repo.insertReview({
-        workspaceId,
-        prId: pull.id,
-        agentId: agent.id,
-        runId,
-        kind: 'review',
-        verdict: outcome.review.verdict,
-        summary: outcome.review.summary,
-        score: outcome.review.score,
-        model: agent.model,
-      });
-      const findingRows = await this.repo.insertFindings(review.id, keptFindings);
-      runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
-
-      // Mark the commit this review ran against so the PR list can tell
-      // reviewed / needs-review (head moved) / stale apart.
-      await this.repo.markReviewed(pull.id, pull.headSha);
-
       const durationMs = Date.now() - start;
 
       // Deterministic blocker count (severity ≥ the agent's gate) — the signal
       // the timeline colors on, NOT the model's self-reported verdict.
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
 
-      // ---- Observability: agent_runs + ONE run_traces document --------------
-      await this.repo.completeAgentRun(runId, {
-        status: 'done',
-        durationMs,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        findingsCount: findingRows.length,
-        grounding,
-        score: outcome.review.score,
-        blockers,
-        error: null,
+      // ---- Persist review + findings + last_reviewed_sha + agent_runs -------
+      // Atomic: see `ReviewRepository.persistRunOutcome`'s doc for why these
+      // four writes must succeed or fail together.
+      const { review, findings: findingRows } = await this.repo.persistRunOutcome({
+        review: {
+          workspaceId,
+          prId: pull.id,
+          agentId: agent.id,
+          runId,
+          kind: 'review',
+          verdict: outcome.review.verdict,
+          summary: outcome.review.summary,
+          score: outcome.review.score,
+          model: agent.model,
+        },
+        findings: keptFindings,
+        markReviewedSha: pull.headSha,
+        completeRun: {
+          runId,
+          values: {
+            status: 'done',
+            durationMs,
+            tokensIn,
+            tokensOut,
+            costUsd,
+            findingsCount: keptFindings.length,
+            grounding,
+            score: outcome.review.score,
+            blockers,
+            error: null,
+          },
+        },
       });
+      runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
 
       const trace: RunTrace = {
         config: {

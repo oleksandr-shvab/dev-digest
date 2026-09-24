@@ -2,7 +2,8 @@ import { type Repo } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { AppError } from '../../platform/errors.js';
 import {
-  GITHUB_URL_REGEX,
+  GITHUB_SSH_URL_REGEX,
+  SAFE_PATH_SEGMENT,
   GIT_TOKEN_USERNAME,
   GITHUB_HTTPS_HOST,
 } from './constants.js';
@@ -12,14 +13,50 @@ import {
  * Pure functions only — no I/O, no DB, no container.
  */
 
-/** Parse `owner`/`name` from a GitHub URL (https or ssh form). */
+function invalidRepoUrl(url: string): never {
+  throw new AppError('invalid_repo_url', `Could not parse owner/repo from '${url}'`, 400);
+}
+
+/** `owner`/`name` must be plain identifiers — used verbatim in a clone-path
+ *  `path.join`, so `.`/`..`/empty segments must never reach the caller. */
+function assertSafeSegments(owner: string, name: string, url: string): void {
+  if (!SAFE_PATH_SEGMENT.test(owner) || !SAFE_PATH_SEGMENT.test(name)) invalidRepoUrl(url);
+}
+
+/**
+ * Parse `owner`/`name` from a GitHub URL (https or ssh form).
+ *
+ * SECURITY: this is the only gate before the URL is handed to `git clone`
+ * (see `RepoService.runCloneJob`), so it must actually validate the host —
+ * not just find a `github.com/owner/repo`-shaped substring somewhere in the
+ * string (a prior version did, which let a URL like
+ * `https://internal-host/x?y=github.com/owner/repo` or a `file://` URL pass
+ * as if it were the named GitHub repo — SSRF / local-file read). The https
+ * form is parsed with `new URL()` and an exact hostname check; the ssh form
+ * uses a fully `^...$`-anchored regex. Both forms then re-validate the
+ * extracted owner/name as plain path segments (see `assertSafeSegments`).
+ */
 export function parseRepoUrl(url: string): { owner: string; name: string } {
-  // https://github.com/owner/repo(.git)  |  git@github.com:owner/repo.git
-  const match = url.match(GITHUB_URL_REGEX);
-  if (!match?.[1] || !match[2]) {
-    throw new AppError('invalid_repo_url', `Could not parse owner/repo from '${url}'`, 400);
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'https:' && u.hostname === GITHUB_HTTPS_HOST) {
+      const segments = u.pathname.replace(/\.git$/, '').split('/').filter(Boolean);
+      if (segments.length !== 2) invalidRepoUrl(url);
+      const [owner, name] = segments as [string, string];
+      assertSafeSegments(owner, name, url);
+      return { owner, name };
+    }
+  } catch (e) {
+    if (e instanceof AppError) throw e;
+    /* not a valid absolute URL — fall through to the ssh form below */
   }
-  return { owner: match[1], name: match[2] };
+
+  // git@github.com:owner/repo.git — fully anchored, can't match a substring.
+  const match = url.match(GITHUB_SSH_URL_REGEX);
+  if (!match?.[1] || !match[2]) invalidRepoUrl(url);
+  const [, owner, name] = match;
+  assertSafeSegments(owner, name, url);
+  return { owner, name };
 }
 
 /**

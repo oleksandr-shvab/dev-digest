@@ -59,6 +59,55 @@ export class ReviewRepository {
     return reviewRepo.insertFindings(this.db, reviewId, findings);
   }
 
+  /**
+   * Atomically persist a completed run's outcome: the review row, its
+   * findings, the PR's `last_reviewed_sha`, and the `agent_runs` completion —
+   * all four or none. Without a transaction, a failure between these steps
+   * (e.g. the process dying mid-write) leaves the run row still 'running'
+   * forever while a review+findings row already exists, or a review
+   * persisted with no matching completed run — inconsistent states the UI
+   * has no way to reconcile. Replaces the four separate calls run-executor.ts
+   * used to make outside any transaction.
+   */
+  async persistRunOutcome(args: {
+    review: {
+      workspaceId: string;
+      prId: string;
+      agentId: string | null;
+      runId: string | null;
+      kind: 'summary' | 'review';
+      verdict: string | null;
+      summary: string | null;
+      score: number | null;
+      model: string | null;
+    };
+    findings: Finding[];
+    markReviewedSha: string;
+    completeRun: {
+      runId: string;
+      values: {
+        status: 'done' | 'failed' | 'cancelled';
+        durationMs: number;
+        tokensIn: number;
+        tokensOut: number;
+        findingsCount: number;
+        grounding: string;
+        score?: number | null;
+        blockers?: number | null;
+        error?: string | null;
+        costUsd?: number | null;
+      };
+    };
+  }): Promise<{ review: ReviewRow; findings: FindingRow[] }> {
+    return this.db.transaction(async (tx) => {
+      const review = await reviewRepo.insertReview(tx, args.review);
+      const findingRows = await reviewRepo.insertFindings(tx, review.id, args.findings);
+      await pullRepo.markReviewed(tx, args.review.prId, args.markReviewedSha);
+      await runRepo.completeAgentRun(tx, args.completeRun.runId, args.completeRun.values);
+      return { review, findings: findingRows };
+    });
+  }
+
   /** Reviews for a PR (newest first), each with its findings. */
   reviewsForPull(prId: string): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
     return reviewRepo.reviewsForPull(this.db, prId);
@@ -87,9 +136,16 @@ export class ReviewRepository {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
   }
 
-  /** Mark a still-running run as cancelled (no-op if it already finished). */
-  cancelRunIfRunning(runId: string): Promise<boolean> {
-    return runRepo.cancelRunIfRunning(this.db, runId);
+  /** Mark a still-running run as cancelled (no-op if it already finished).
+   *  Workspace-scoped. */
+  cancelRunIfRunning(workspaceId: string, runId: string): Promise<boolean> {
+    return runRepo.cancelRunIfRunning(this.db, workspaceId, runId);
+  }
+
+  /** Whether `runId` belongs to `workspaceId` — for authorizing access by
+   *  run id alone (e.g. before opening its SSE stream). */
+  runBelongsToWorkspace(workspaceId: string, runId: string): Promise<boolean> {
+    return runRepo.runBelongsToWorkspace(this.db, workspaceId, runId);
   }
 
   /** On boot: any run still 'running' is orphaned (its process died / restarted),
@@ -187,7 +243,9 @@ export class ReviewRepository {
     return runRepo.saveRunTrace(this.db, runId, trace);
   }
 
-  getRunTrace(runId: string): Promise<RunTrace | undefined> {
-    return runRepo.getRunTrace(this.db, runId);
+  /** `run_traces` has no `workspace_id` of its own — scoped via the owning
+   *  `agent_runs` row. */
+  getRunTrace(workspaceId: string, runId: string): Promise<RunTrace | undefined> {
+    return runRepo.getRunTrace(this.db, workspaceId, runId);
   }
 }

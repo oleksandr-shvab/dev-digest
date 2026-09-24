@@ -59,6 +59,10 @@ plus the root `insights.md` for cross-cutting or infra work. State in one
 line what you loaded. Treat those entries as high-confidence guidance unless
 they contradict this file or the code in front of you.
 
+**Before opening a PR**, run the [`pr-self-review`](.claude/skills/pr-self-review/SKILL.md)
+skill (`/pr-self-review`). A `.claude/settings.json` hook blocks `gh pr create` until its
+report is fresh and has no CRITICAL finding — fix them, don't route around the gate.
+
 **When the task ends**, run the `engineering-insights` skill. It appends
 only what is substantive and not already recorded — writing nothing is the
 correct outcome for a routine task. Do not skip the check.

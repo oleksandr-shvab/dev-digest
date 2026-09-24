@@ -23,3 +23,8 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# pr-self-review: per-run state (reports, patches, cache, agent output).
+# Only the team-shared suppressions file is committed.
+.claude/pr-self-review/*
+!.claude/pr-self-review/suppressions.json
