@@ -14,9 +14,15 @@ true, but only on explicit request.
 
 ## What Doesn't Work
 
+- **2026-09-25** — Importing a runtime value (not `import type`) from `@devdigest/shared` passes `tsc` and vitest but fails `pnpm build` with `Module not found: Can't resolve './contracts/brief.js'`, because the vendored barrel uses `.js` specifiers webpack can't map to `.ts`. Import only types from it and mirror needed constants locally, as `SKILL_NAME_RE` / `MAX_SKILL_BODY_CHARS` are in `src/lib/skill-meta.ts`.
+
 ## Codebase Patterns
 
+- **2026-09-25** — `apiFetch` sets `content-type: application/json` whenever a body is present, which would break multipart uploads; it now skips that header for `FormData`, so file uploads go through `api.postForm`. `src/lib/api.ts`
+
 ## Tool & Library Notes
+
+- **2026-09-25** — Keyboard reordering with `@dnd-kit/sortable` under jsdom only works if `HTMLElement.prototype.getBoundingClientRect` is stubbed with distinct row rects (jsdom returns all zeros), and `.focus()` on the drag handle must be wrapped in `act()` or React logs an act warning. `src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/SkillsTab.test.tsx`
 
 ## Recurring Errors & Fixes
 

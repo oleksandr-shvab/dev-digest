@@ -8,6 +8,7 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { activeSkillLinks, formatSkillBlock, skillsLogLines } from '../skills/helpers.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -183,6 +184,20 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills (Decisions 2-3): enabled globally AND for this agent, in the
+      // agent's order, each rendered as its own block. Empty → `skills` is
+      // omitted so the prompt is identical to an agent with no skills.
+      const skillLinks = activeSkillLinks(await this.agents.linkedSkills(agent.id));
+      const skillBlocks = skillLinks.map((l) => formatSkillBlock(l.skill));
+      const skillsApplied = skillLinks.map((l, i) => ({
+        id: l.skill.id,
+        name: l.skill.name,
+        version: l.skill.version,
+        source: l.skill.source,
+        tokens: this.container.tokenizer.count(skillBlocks[i]!),
+      }));
+      for (const line of skillsLogLines(skillsApplied)) runLog.info(line);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -200,6 +215,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Linked skills, one block each; omitted when none are active.
+        ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -236,6 +253,12 @@ export class ReviewRunExecutor {
         },
         findings: keptFindings,
         markReviewedSha: pull.headSha,
+        // Only completed runs record applied skills (failed/cancelled write none).
+        runSkills: skillsApplied.map((s) => ({
+          skillId: s.id,
+          skillVersion: s.version,
+          tokens: s.tokens,
+        })),
         completeRun: {
           runId,
           values: {
@@ -281,6 +304,7 @@ export class ReviewRunExecutor {
         raw_output: outcome.raw,
         memory_pulled: [],
         specs_read: [],
+        ...(skillsApplied.length > 0 ? { skills_applied: skillsApplied } : {}),
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),

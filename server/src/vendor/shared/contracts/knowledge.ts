@@ -115,8 +115,21 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+export const SkillSource = z.enum([
+  'manual',
+  'imported_url',
+  'imported_file',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
+
+export const SkillStatsSummary = z.object({
+  used_by: z.number().int(),
+  pull_rate: z.number().min(0).max(1).nullable(),
+  accept_rate: z.number().min(0).max(1).nullable(),
+});
+export type SkillStatsSummary = z.infer<typeof SkillStatsSummary>;
 
 export const Skill = z.object({
   id: z.string(),
@@ -128,8 +141,76 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  updated_at: z.string().nullish(),
+  /** Present on list/detail reads (30-day window). */
+  stats: SkillStatsSummary.optional(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** Body / description / type / message accepted by POST and PUT /skills. */
+export const SKILL_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const MAX_SKILL_BODY_CHARS = 40_000;
+
+export const SkillInput = z.object({
+  name: z.string().min(1).max(64).regex(SKILL_NAME_RE),
+  description: z.string().min(1).max(500),
+  type: SkillType,
+  body: z.string().min(1).max(MAX_SKILL_BODY_CHARS),
+  enabled: z.boolean().optional(),
+  source: z.enum(['manual', 'imported_file']).optional(),
+  /** PUT only — used when a version is created. */
+  message: z.string().max(200).optional(),
+});
+export type SkillInput = z.infer<typeof SkillInput>;
+
+export const SkillVersion = z.object({
+  version: z.number().int(),
+  message: z.string(),
+  created_at: z.string(),
+  body: z.string(),
+  description: z.string(),
+  type: SkillType,
+  current: z.boolean(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+export const SkillStats = SkillStatsSummary.extend({
+  window_days: z.literal(30),
+  findings: z.number().int(),
+  agents: z.array(z.object({ id: z.string(), name: z.string(), enabled: z.boolean() })),
+  by_category: z.array(z.object({ category: z.string(), count: z.number().int() })),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
+
+export const SkillImportIgnoredReason = z.enum(['script', 'binary', 'non-skill-file']);
+export type SkillImportIgnoredReason = z.infer<typeof SkillImportIgnoredReason>;
+
+export const SkillImportDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  tokens: z.number().int(),
+  file: z.object({ name: z.string(), kind: z.enum(['md', 'zip']) }),
+  ignored: z.array(z.object({ path: z.string(), reason: SkillImportIgnoredReason })),
+  warnings: z.array(z.string()),
+  name_conflict: z.boolean(),
+});
+export type SkillImportDraft = z.infer<typeof SkillImportDraft>;
+
+/** A skill linked to an agent, in prompt order. */
+export const AgentSkill = z.object({
+  skill: Skill,
+  order: z.number().int(),
+  enabled: z.boolean(),
+});
+export type AgentSkill = z.infer<typeof AgentSkill>;
+
+/** Body of PUT /agents/:id/skills — the full ordered set. */
+export const SetAgentSkillsInput = z.object({
+  items: z.array(z.object({ skill_id: z.string(), enabled: z.boolean() })),
+});
+export type SetAgentSkillsInput = z.infer<typeof SetAgentSkillsInput>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -188,6 +269,8 @@ export const Agent = z.object({
   // Inject repo-intel context (repo skeleton + callers + rank note) into this
   // agent's review prompt. Default on; gated again by the global flag.
   repo_intel: z.boolean().default(true),
+  /** Enabled links whose skill is enabled — agent card badge. */
+  skill_count: z.number().int().optional(),
 });
 export type Agent = z.infer<typeof Agent>;
 
@@ -211,7 +294,7 @@ export const AgentVersionConfig = z.object({
   strategy: ReviewStrategy,
   ci_fail_on: CiFailOn,
   repo_intel: z.boolean(),
-  skills: z.array(z.string()),
+  skills: z.array(z.object({ skill_id: z.string(), version: z.number().int(), enabled: z.boolean() })),
 });
 export type AgentVersionConfig = z.infer<typeof AgentVersionConfig>;
 

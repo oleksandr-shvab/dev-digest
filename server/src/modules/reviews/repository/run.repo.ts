@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db, Tx } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -238,4 +238,27 @@ export async function getRunTrace(
     .innerJoin(t.agentRuns, eq(t.agentRuns.id, t.runTraces.runId))
     .where(and(eq(t.runTraces.runId, runId), eq(t.agentRuns.workspaceId, workspaceId)));
   return row ? (row.trace as RunTrace) : undefined;
+}
+
+/**
+ * Record which skill versions a completed run applied (`run_skills`). Rows for
+ * skills deleted since the run started are skipped rather than failing the
+ * whole outcome transaction on the FK.
+ */
+export async function insertRunSkills(
+  db: Db | Tx,
+  runId: string,
+  rows: { skillId: string; skillVersion: number; tokens: number }[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  const existing = await db
+    .select({ id: t.skills.id })
+    .from(t.skills)
+    .where(inArray(t.skills.id, rows.map((r) => r.skillId)));
+  const alive = new Set(existing.map((r) => r.id));
+  const values = rows
+    .filter((r) => alive.has(r.skillId))
+    .map((r) => ({ runId, skillId: r.skillId, skillVersion: r.skillVersion, tokens: r.tokens }));
+  if (values.length === 0) return;
+  await db.insert(t.runSkills).values(values).onConflictDoNothing();
 }

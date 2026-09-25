@@ -79,6 +79,8 @@ import {
   Workflow,
   PanelRight,
   CornerDownRight,
+  GripVertical,
+  MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
 
@@ -162,6 +164,8 @@ export const Icon = {
   Workflow,
   PanelRight,
   CornerDownRight,
+  GripVertical,
+  MoreHorizontal,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof Icon;

@@ -48,6 +48,17 @@ true, but only on explicit request.
 
 ## Tool & Library Notes
 
+- **2026-09-25** — `agent_runs` has no `created_at`; its timestamp is `ran_at`
+  (`server/src/db/schema/runs.ts`). `server/specs/skills.md` says the stats
+  window is on `agent_runs.created_at` — the skills stats queries
+  (`server/src/modules/skills/repository.ts`) use `ran_at` instead.
+- **2026-09-25** — The skills zip import reads archives with an in-repo
+  `node:zlib` central-directory reader (`modules/skills/import/zip.ts`) and the
+  upload with a hand-rolled multipart extractor (`import/multipart.ts`) instead
+  of `fflate` / `@fastify/multipart`, because `pnpm add` had no registry access
+  when it was written. Swapping in the packages later is a drop-in inside those
+  two files; the parser API (`parseSkillImport`) does not change.
+
 ## Recurring Errors & Fixes
 
 - **2026-09-15** — `server/.env` with `LOG_LEVEL=` (present but empty) fails

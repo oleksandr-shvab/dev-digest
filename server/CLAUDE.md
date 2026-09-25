@@ -12,7 +12,7 @@ map.
 ## Map
 
 - `src/modules/` — one folder per feature, each with its own `routes.ts` +
-  service/repo: `pulls`, `reviews`, `agents`, `polling`, `repos`, `repo-intel`,
+  service/repo: `pulls`, `reviews`, `agents`, `skills`, `polling`, `repos`, `repo-intel`,
   `settings`, `workspace`. Registered in `modules/index.ts`.
 - `src/db/schema/` — Drizzle schema, one file per entity group
   (`pulls`, `agents`, `runs`, `reviews`). `src/db/migrations/` is generated.

@@ -2,6 +2,7 @@
 name: pr-self-review
 description: "PR Self Review — pre-PR gate for local changes. Run before opening a pull request (before `gh pr create`) or manually. Collects every open change (branch commits, staged, unstaged, untracked), routes files to the repo's skills (UI files → react/next/frontend-architecture/testing skills, backend files → onion-architecture/fastify/drizzle/postgres skills, security + zod + typescript by content), runs project-specific deterministic checks (secrets, applied-migration edits, vendored-code drift, PR size, CI parity), verifies every CRITICAL finding, and forbids opening/merging the PR while any confirmed CRITICAL remains. Trigger terms: PR self review, self-review, review before PR, pre-PR check, before opening a pull request, gh pr create, can I open a PR, is this ready to merge."
 argument-hint: "[--base <ref>] [--fast] [--fix] [--no-cache] [--no-ci]"
+disable-model-invocation: true
 ---
 
 # PR Self Review

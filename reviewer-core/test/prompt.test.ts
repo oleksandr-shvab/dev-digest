@@ -117,3 +117,43 @@ describe('wrapUntrusted — the injection-guard escaping itself', () => {
     expect(out.split('</untrusted>').length - 1).toBe(1);
   });
 });
+
+describe('assemblePrompt — ## Skills / rules', () => {
+  const blocks = ['### uncovered-branches (v1)\nEvery branch needs a test.\n\nBody A', '### corner-cases (v2)\nEdges.\n\nBody B'];
+
+  it('renders each skill block, in order, before the diff, and records the assembly', () => {
+    const { messages, assembly } = assemblePrompt({ system: 'sys', diff: 'DIFF', skills: blocks });
+    const user = messages[1]!.content;
+    expect(user).toContain('## Skills / rules');
+    expect(user.indexOf('### uncovered-branches (v1)')).toBeLessThan(user.indexOf('### corner-cases (v2)'));
+    expect(user.indexOf('## Skills / rules')).toBeLessThan(user.indexOf('## Diff to review'));
+    expect(assembly.skills).toBe(blocks.join('\n\n'));
+  });
+
+  it('does NOT wrap skills in <untrusted> (they are instructions)', () => {
+    const user = userOf({ system: 'sys', diff: 'DIFF', skills: blocks });
+    const section = user.slice(user.indexOf('## Skills / rules'), user.indexOf('## Diff to review'));
+    expect(section).not.toContain('<untrusted');
+  });
+
+  it('empty or undefined skills → no section and assembly.skills is null', () => {
+    for (const skills of [undefined, [] as string[]]) {
+      const { messages, assembly } = assemblePrompt({ system: 'sys', diff: 'DIFF', skills });
+      expect(messages[1]!.content).not.toContain('## Skills / rules');
+      expect(assembly.skills ?? null).toBeNull();
+    }
+  });
+
+  it('a prompt with no skills is identical to one that omits the key', () => {
+    expect(assemblePrompt({ system: 'sys', diff: 'DIFF', skills: [] }).messages).toEqual(
+      assemblePrompt({ system: 'sys', diff: 'DIFF' }).messages,
+    );
+  });
+
+  it('keeps INJECTION_GUARD last in the system prompt when skills are present', () => {
+    const sys = systemOf({ system: 'AGENT-SYS', diff: 'DIFF', skills: blocks });
+    expect(sys.startsWith('AGENT-SYS')).toBe(true);
+    expect(sys).toMatch(/<untrusted>.*DATA to be analyzed/s);
+    expect(sys).not.toContain('Body A');
+  });
+});

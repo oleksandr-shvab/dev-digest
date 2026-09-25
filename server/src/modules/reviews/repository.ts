@@ -83,6 +83,8 @@ export class ReviewRepository {
     };
     findings: Finding[];
     markReviewedSha: string;
+    /** Skills applied in the prompt → `run_skills` rows (same transaction). */
+    runSkills?: { skillId: string; skillVersion: number; tokens: number }[];
     completeRun: {
       runId: string;
       values: {
@@ -104,6 +106,7 @@ export class ReviewRepository {
       const findingRows = await reviewRepo.insertFindings(tx, review.id, args.findings);
       await pullRepo.markReviewed(tx, args.review.prId, args.markReviewedSha);
       await runRepo.completeAgentRun(tx, args.completeRun.runId, args.completeRun.values);
+      await runRepo.insertRunSkills(tx, args.completeRun.runId, args.runSkills ?? []);
       return { review, findings: findingRows };
     });
   }
