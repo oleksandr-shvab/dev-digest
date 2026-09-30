@@ -11,7 +11,7 @@ import { ApiError } from "@/lib/api";
 import { useCreateSkill, useUpdateSkill } from "@/lib/hooks/skills";
 import { MAX_SKILL_BODY_CHARS, SKILL_TYPES } from "@/lib/skill-meta";
 import { useToast } from "@/lib/toast";
-import { SkillBodyEditor } from "./_components/SkillBodyEditor";
+import { SkillBodyEditor } from "@/components/skill-body-editor";
 import { DEFAULT_TYPE, MESSAGE_MAX } from "./constants";
 import { buildPatch, isContentChange, validateSkillForm } from "./helpers";
 import { s } from "./styles";

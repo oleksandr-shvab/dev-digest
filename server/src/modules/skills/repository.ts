@@ -25,6 +25,8 @@ export interface InsertSkill {
   source: SkillRow['source'];
   body: string;
   enabled?: boolean;
+  /** Internal-only (conventions extraction) — the source files a skill was built from. */
+  evidenceFiles?: string[];
   /** Message stored on v1. */
   message: string;
 }
@@ -75,6 +77,7 @@ export class SkillsRepository {
           source: values.source,
           body: values.body,
           enabled: values.enabled ?? true,
+          evidenceFiles: values.evidenceFiles ?? null,
           version: INITIAL_SKILL_VERSION,
         })
         .returning();

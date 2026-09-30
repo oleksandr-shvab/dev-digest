@@ -6,21 +6,50 @@
     "repoFallback": "repo",
     "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
     "scanning": "Scanning…",
-    "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
+    "rescan": "ReScan",
     "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
     "empty": {
       "title": "No conventions extracted yet",
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
-      "cta": "Run extraction"
+      "cta": "Run Scan"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "scanResult": "Kept {kept} candidate(s) · {dropped} dropped (no evidence)",
+    "filters": {
+      "all": "All ({count})",
+      "pending": "Pending ({count})",
+      "accepted": "Accepted ({count})"
+    },
+    "createSkill": "Create skill ({count} accepted)"
   },
   "card": {
     "confidence": "Confidence",
+    "edited": "edited",
+    "accept": "Accept",
+    "reject": "Reject",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
     "accepted": "Accepted",
-    "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "undo": "Undo",
+    "actionFor": "{action}: {rule}",
+    "editLabel": "Edit rule: {rule}"
+  },
+  "createSkill": {
+    "title": "Create skill from conventions",
+    "subtitle": "Built from {count, plural, one {# accepted convention} other {# accepted conventions}}",
+    "explainer": "Creates one skill from the {count, plural, one {# convention} other {# conventions}} you accepted. Its text is injected into the prompts of the agents you link it to.",
+    "name": "Name",
+    "nameInvalid": "Use lowercase letters, digits and hyphens only.",
+    "nameTaken": "Name already used",
+    "description": "Description",
+    "body": "Skill body",
+    "linkAgents": "Link to agents",
+    "noAgents": "No agents yet.",
+    "cancel": "Cancel",
+    "create": "Create",
+    "saving": "Creating…",
+    "saved": "Saved skill \"{name}\""
   }
 }

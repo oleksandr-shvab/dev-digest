@@ -82,7 +82,10 @@ export function defaultVersionMessage(opts: {
   return MESSAGE_INITIAL;
 }
 
-export type SkillUpdatePatch = Partial<Pick<SkillInput, 'name' | 'description' | 'type' | 'body' | 'enabled'>>;
+export type SkillUpdatePatch = Partial<Pick<SkillInput, 'name' | 'description' | 'type' | 'body' | 'enabled'>> & {
+  /** Internal-only (conventions re-extraction) — never settable via SkillInput. */
+  evidenceFiles?: string[];
+};
 
 export interface SkillUpdatePlan {
   /** Column changes to apply (only fields that actually differ). */
@@ -109,6 +112,7 @@ export function planSkillUpdate(
   }
   if (patch.type !== undefined && patch.type !== existing.type) set.type = patch.type;
   if (patch.body !== undefined && patch.body !== existing.body) set.body = patch.body;
+  if (patch.evidenceFiles !== undefined) set.evidenceFiles = patch.evidenceFiles;
   const bump = set.body !== undefined || set.description !== undefined || set.type !== undefined;
   return { set, bump, changed: Object.keys(set).length > 0 };
 }

@@ -23,6 +23,7 @@ true, but only on explicit request.
 ## Tool & Library Notes
 
 - **2026-09-25** — Keyboard reordering with `@dnd-kit/sortable` under jsdom only works if `HTMLElement.prototype.getBoundingClientRect` is stubbed with distinct row rects (jsdom returns all zeros), and `.focus()` on the drag handle must be wrapped in `act()` or React logs an act warning. `src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/SkillsTab.test.tsx`
+- **2026-09-29** — The vendored kit's `Textarea` (`src/vendor/ui/kit/Textarea.tsx`) takes a fixed prop list with no `...rest` spread, so it cannot carry an `aria-label` — unusable wherever several instances render at once and each needs a unique accessible name (e.g. one edit textarea per card in a list). Render a plain native `<textarea>` with the same inline styles instead of the kit component in that case, as `ConventionCard.tsx` does.
 
 ## Recurring Errors & Fixes
 

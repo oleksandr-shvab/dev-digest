@@ -222,15 +222,80 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+export const ConventionCategory = z.enum([
+  'naming',
+  'structure',
+  'imports',
+  'typing',
+  'error-handling',
+  'testing',
+  'formatting',
+  'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  repo_id: z.string(),
+  category: ConventionCategory,
   rule: z.string(),
   evidence_path: z.string(),
+  evidence_line: z.number().int(),
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+  status: ConventionStatus,
+  edited: z.boolean(),
+  created_at: z.string(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/** Why a model-proposed candidate never reached the list (evidence check / dedupe). */
+export const ConventionDropReason = z.enum([
+  'path_not_sampled',
+  'file_missing',
+  'snippet_not_found',
+  'duplicate',
+  'rejected_before',
+]);
+export type ConventionDropReason = z.infer<typeof ConventionDropReason>;
+
+/** Response of POST /repos/:id/conventions/extract. */
+export const ConventionScanResult = z.object({
+  candidates: z.array(ConventionCandidate),
+  samples: z.array(z.string()),
+  dropped: z.array(z.object({ rule: z.string(), reason: ConventionDropReason })),
+  model: z.string(),
+});
+export type ConventionScanResult = z.infer<typeof ConventionScanResult>;
+
+/** Body of PATCH /conventions/:id. */
+export const ConventionPatch = z.object({
+  status: ConventionStatus.optional(),
+  rule: z.string().min(1).max(500).optional(),
+  category: ConventionCategory.optional(),
+});
+export type ConventionPatch = z.infer<typeof ConventionPatch>;
+
+/** Response of POST /repos/:id/conventions/skill-draft — not yet saved. */
+export const ConventionSkillDraft = z.object({
+  name: z.string().min(1).max(64).regex(SKILL_NAME_RE),
+  description: z.string().min(1).max(500),
+  type: z.literal('convention'),
+  body: z.string().min(1).max(MAX_SKILL_BODY_CHARS),
+  evidence_files: z.array(z.string()),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
+
+/** Body of POST /repos/:id/conventions/skill. */
+export const CreateConventionSkill = ConventionSkillDraft.extend({
+  candidate_ids: z.array(z.string()),
+  agent_ids: z.array(z.string()),
+  message: z.string().max(200).optional(),
+});
+export type CreateConventionSkill = z.infer<typeof CreateConventionSkill>;
 
 // ---- Agents ----
 export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);

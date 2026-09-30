@@ -405,6 +405,59 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
+  // ---- demo conventions (client spec: e2e/specs/09-conventions.flow.json is
+  // deterministic — no LLM — so it triages pre-seeded rows instead of scanning).
+  // Idempotent: skip if this repo already has any (seeded once, then the flow
+  // and any manual triage own them).
+  const [existingConvention] = await db
+    .select({ id: t.conventions.id })
+    .from(t.conventions)
+    .where(eq(t.conventions.repoId, repoId));
+  if (!existingConvention) {
+    await db.insert(t.conventions).values([
+      {
+        workspaceId,
+        repoId,
+        category: 'error-handling',
+        rule: 'Route handlers return a typed AppError instead of throwing a raw Error.',
+        evidencePath: 'server/src/modules/pulls/routes.ts',
+        evidenceLine: 42,
+        evidenceSnippet: "throw new NotFoundError('Pull request not found');",
+        confidence: 0.9,
+      },
+      {
+        workspaceId,
+        repoId,
+        category: 'naming',
+        rule: 'Repository classes are named <Domain>Repository.',
+        evidencePath: 'server/src/modules/pulls/repository.ts',
+        evidenceLine: 1,
+        evidenceSnippet: 'export class PullsRepository {',
+        confidence: 0.85,
+      },
+      {
+        workspaceId,
+        repoId,
+        category: 'testing',
+        rule: 'Integration tests are named *.it.test.ts and skip when Docker is unavailable.',
+        evidencePath: 'server/test/reviews.it.test.ts',
+        evidenceLine: 11,
+        evidenceSnippet: 'const d = hasDocker ? describe : describe.skip;',
+        confidence: 0.7,
+      },
+      {
+        workspaceId,
+        repoId,
+        category: 'imports',
+        rule: 'Cross-module imports go through a module barrel, never a sibling module’s internals.',
+        evidencePath: 'server/src/modules/reviews/run-executor.ts',
+        evidenceLine: 5,
+        evidenceSnippet: "import { SkillsRepository } from '../skills/repository.js';",
+        confidence: 0.55,
+      },
+    ]);
+  }
+
   return { workspaceId, userId };
 }
 

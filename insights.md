@@ -22,6 +22,7 @@ true, but only on explicit request.
 ## Tool & Library Notes
 
 - **2026-09-24** — pnpm 12.4.1 here runs an implicit `pnpm install` before any `pnpm <script>` when it thinks `node_modules` is outdated (`verify-deps-before-run`), which mutated real deps and then failed with `ERR_PNPM_IGNORED_BUILDS` (esbuild/protobufjs/ssh2 build scripts) — so a "typecheck failed" that was really an install failure. Any tool that shells out to `pnpm typecheck`/`pnpm test` outside a deliberate install must set `npm_config_verify_deps_before_run=false`. `.claude/skills/pr-self-review/scripts/ci.mjs`
+- **2026-09-29** — On this machine, the real `devdigest-postgres` container (13+ days old, holding actual imported data) runs under the Docker CLI's `default` context, while `docker context ls` shows `desktop-linux` as the selected one — so plain `docker ps` / `docker compose up -d` see nothing, and `./scripts/dev.sh --db-only` then tries to create a second container that fails with `ports are not available: ... 0.0.0.0:5433`. Check `docker --context default ps` before concluding Postgres isn't running.
 
 ## Recurring Errors & Fixes
 

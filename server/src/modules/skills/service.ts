@@ -3,6 +3,7 @@ import type {
   Skill,
   SkillImportDraft,
   SkillInput,
+  SkillSource,
   SkillStats,
   SkillVersion,
 } from '@devdigest/shared';
@@ -49,9 +50,24 @@ export class SkillsService {
     return row ? this.withStats(row) : undefined;
   }
 
-  async create(workspaceId: string, input: SkillInput): Promise<Skill> {
+  /** Used by the conventions module to find/re-version the `repo-conventions` skill. */
+  async getByName(workspaceId: string, name: string): Promise<Skill | undefined> {
+    const row = await this.repo.getByName(workspaceId, name);
+    return row ? this.withStats(row) : undefined;
+  }
+
+  /**
+   * `internal` is set only by the conventions module (`source: 'extracted'` +
+   * `evidenceFiles`) — the public `SkillInput.source` enum has no `'extracted'`
+   * variant, so the HTTP API itself can never produce one.
+   */
+  async create(
+    workspaceId: string,
+    input: SkillInput,
+    internal?: { source?: SkillSource; evidenceFiles?: string[] },
+  ): Promise<Skill> {
     if (await this.repo.getByName(workspaceId, input.name)) throw this.duplicate(input.name);
-    const source = input.source ?? 'manual';
+    const source = internal?.source ?? input.source ?? 'manual';
     try {
       const row = await this.repo.create({
         workspaceId,
@@ -61,6 +77,7 @@ export class SkillsService {
         source,
         body: input.body,
         ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        ...(internal?.evidenceFiles !== undefined ? { evidenceFiles: internal.evidenceFiles } : {}),
         message: defaultVersionMessage({ initial: true, source, message: input.message }),
       });
       return await this.withStats(row);
@@ -71,7 +88,12 @@ export class SkillsService {
   }
 
   /** Partial update; body/description/type changes version the skill (Decisions 6–7). */
-  async update(workspaceId: string, id: string, patch: UpdateSkillInput): Promise<Skill | undefined> {
+  async update(
+    workspaceId: string,
+    id: string,
+    patch: UpdateSkillInput,
+    internal?: { evidenceFiles?: string[] },
+  ): Promise<Skill | undefined> {
     if (patch.name !== undefined) {
       const clash = await this.repo.getByName(workspaceId, patch.name);
       if (clash && clash.id !== id) throw this.duplicate(patch.name);
@@ -82,6 +104,7 @@ export class SkillsService {
       ...(patch.type !== undefined ? { type: patch.type } : {}),
       ...(patch.body !== undefined ? { body: patch.body } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      ...(internal?.evidenceFiles !== undefined ? { evidenceFiles: internal.evidenceFiles } : {}),
     };
     try {
       const res = await this.repo.update(

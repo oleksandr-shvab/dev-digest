@@ -101,3 +101,4 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `06-onboarding` | `/onboarding` → add-repository form renders (no submit) |
 | `07-settings` | `/settings/api-keys` + `/settings/models` → section titles render |
 | `08-skills` | create a skill → edit (v2 + message) → restore v1 (v3) → link/toggle/reorder on Test Quality Reviewer → import `flaky-tests.zip` via preview (`scripts/` ignored) → both in the list |
+| `09-conventions` | seeded candidates on the demo repo → accept 2, reject 1, edit 1 inline → leave/return confirms the rejected one stays gone → Create skill with an edited body → new skill on `/skills` |
