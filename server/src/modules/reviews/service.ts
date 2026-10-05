@@ -1,9 +1,12 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { FindingActionKind, PrIntentRecord, RunEventKind, RunTrace } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
+import type { PinoLike } from '../../platform/run-logger.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
-import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
+import { type ReviewDto, type ReviewDtoFinding, intentRowToRecord } from './helpers.js';
+import { IntentDeriver, requestIntentLog } from './intent-deriver.js';
+import { loadDiff } from './diff-loader.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
@@ -28,12 +31,14 @@ export type { ReviewDto, ReviewDtoFinding } from './helpers.js';
 export class ReviewService {
   private repo: ReviewRepository;
   private agents: Container['agentsRepo'];
+  private intents: IntentDeriver;
   private executor: ReviewRunExecutor;
 
   constructor(private container: Container) {
     this.repo = new ReviewRepository(container.db);
     this.agents = container.agentsRepo;
-    this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
+    this.intents = new IntentDeriver(container, this.repo);
+    this.executor = new ReviewRunExecutor(container, this.repo, this.agents, this.intents);
   }
 
   // ===========================================================================
@@ -191,6 +196,35 @@ export class ReviewService {
     return rows.map(({ review, findings }) =>
       reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
     );
+  }
+
+  /** The stored intent for a PR (with `stale` against its current head), or null when none. */
+  async getIntent(workspaceId: string, prId: string): Promise<PrIntentRecord | null> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const row = await this.repo.getIntent(prId);
+    return row ? intentRowToRecord(row, pull.headSha) : null;
+  }
+
+  /** Derive (or re-derive) the intent now — one classifier call; overwrites the stored row. */
+  async deriveIntent(
+    workspaceId: string,
+    prId: string,
+    logger?: PinoLike,
+  ): Promise<PrIntentRecord> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const repoRow = await this.repo.getRepo(pull.repoId);
+    if (!repoRow) throw new NotFoundError('Repo not found');
+    const diff = await loadDiff(this.container, this.repo, workspaceId, pull, repoRow);
+    const row = await this.intents.derive({
+      workspaceId,
+      pull,
+      repoRow,
+      diff,
+      log: requestIntentLog(logger, { prId }),
+    });
+    return intentRowToRecord(row, pull.headSha);
   }
 
   async getRunTrace(workspaceId: string, runId: string): Promise<RunTrace | undefined> {

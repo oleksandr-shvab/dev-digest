@@ -17,6 +17,7 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  CommitFileResult,
   GitClient,
   CloneOptions,
   UnifiedDiff,
@@ -33,6 +34,7 @@ import type {
   SecretKey,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
+import { isSafeRepoPath } from './github/repo-file.js';
 
 /**
  * Deterministic MOCK adapters for tests/dev — NO real network. Each mirrors the
@@ -125,6 +127,10 @@ export interface MockGitHubOptions {
   login?: string;
   /** Existing inline review comments returned by listReviewComments. */
   comments?: PrReviewComment[];
+  /** Repo-relative path → content, returned by getFileAtCommit. */
+  files?: Record<string, string>;
+  /** Issue numbers for which getIssue throws a 404-status error. */
+  missingIssues?: number[];
 }
 
 export class MockGitHubClient implements GitHubClient {
@@ -231,7 +237,21 @@ export class MockGitHubClient implements GitHubClient {
   }
 
   async getIssue(_repo: RepoRef, n: number): Promise<IssueMeta> {
+    if (this.opts.missingIssues?.includes(n)) {
+      throw Object.assign(new Error(`Issue #${n} not found`), { status: 404 });
+    }
     return { number: n, title: `Issue #${n}`, body: 'mock issue', state: 'open' };
+  }
+
+  async getFileAtCommit(
+    _repo: RepoRef,
+    _sha: string,
+    path: string,
+    _maxBytes: number,
+  ): Promise<CommitFileResult> {
+    if (!isSafeRepoPath(path)) return { ok: false, reason: 'invalid_path' };
+    const content = this.opts.files?.[path];
+    return content === undefined ? { ok: false, reason: 'not_found' } : { ok: true, content };
   }
 
   async currentLogin(): Promise<string> {

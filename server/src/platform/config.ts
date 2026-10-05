@@ -31,7 +31,31 @@ const EnvSchema = z.object({
   DEVDIGEST_CLONE_DIR: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
+  // Prompt-assembly logging: off | summary (default) | full. An empty value in
+  // .env counts as unset (zod's `.optional()` alone would reject '').
+  PROMPT_LOG_DETAIL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['off', 'summary', 'full']).optional(),
+  ),
 });
+
+/** How much of the prompt's assembly is logged. All levels log sizes, never content. */
+export type PromptLogDetail = 'off' | 'summary' | 'full';
+
+/**
+ * `full` adds per-item sizes (each skill, spec chunk, diff file path) to stdout.
+ * It is honoured only in development; anywhere else it is downgraded to
+ * `summary` and the caller is told, so a stray env var cannot widen production logs.
+ */
+export function resolvePromptLogDetail(
+  requested: PromptLogDetail | undefined,
+  nodeEnv: 'development' | 'test' | 'production',
+): { detail: PromptLogDetail; downgraded: boolean } {
+  if (requested === 'full' && nodeEnv !== 'development') {
+    return { detail: 'summary', downgraded: true };
+  }
+  return { detail: requested ?? 'summary', downgraded: false };
+}
 
 export type AppConfig = {
   databaseUrl: string;
@@ -54,6 +78,10 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /** Effective prompt-assembly log level (see `resolvePromptLogDetail`). */
+  promptLogDetail: PromptLogDetail;
+  /** True when PROMPT_LOG_DETAIL=full was requested outside development and ignored. */
+  promptLogDetailDowngraded: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -61,6 +89,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  const promptLog = resolvePromptLogDetail(parsed.PROMPT_LOG_DETAIL, parsed.NODE_ENV);
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
@@ -72,5 +101,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    promptLogDetail: promptLog.detail,
+    promptLogDetailDowngraded: promptLog.downgraded,
   };
 }

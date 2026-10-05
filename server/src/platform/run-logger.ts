@@ -52,6 +52,14 @@ export class RunLogger {
     this.base?.[LEVEL[kind]]({ ...this.ctx, runIds: this.runIds, kind, ...(data !== undefined ? { data } : {}) }, msg);
   }
 
+  /**
+   * Stdout only: NOT streamed over SSE and NOT in the persisted trace. For
+   * detail that should stay on the machine running the server.
+   */
+  local(msg: string, data?: unknown): void {
+    this.base?.info({ ...this.ctx, runIds: this.runIds, kind: 'info', ...(data !== undefined ? { data } : {}) }, msg);
+  }
+
   info(msg: string, data?: unknown): void {
     this.event('info', msg, data);
   }

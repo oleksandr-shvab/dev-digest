@@ -5,6 +5,33 @@
     "risks": "Risks",
     "history": "PR history"
   },
+  "intent": {
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "none": "None stated",
+    "confidence": {
+      "high": "High confidence",
+      "medium": "Medium confidence",
+      "low": "Low confidence"
+    },
+    "sources": "Sources",
+    "sourceKind": {
+      "pr_title": "PR title",
+      "pr_description": "PR description",
+      "issue": "Issue",
+      "document": "Document",
+      "external_link": "External link",
+      "changed_files": "Changed files"
+    },
+    "missingContext": "Missing context",
+    "model": "Derived by {model}",
+    "stale": "The PR has new commits since this intent was derived.",
+    "rederive": "Re-derive",
+    "derive": "Derive intent",
+    "emptyTitle": "No intent derived yet",
+    "emptyBody": "Derive the intent to check that the system understood what this PR is for. A review derives it on its own when none is stored.",
+    "loadError": "Could not load the intent."
+  },
   "noRisks": "No notable risks flagged.",
   "noHistory": "No prior PRs overlap these files.",
   "overlap": "{count} overlap",

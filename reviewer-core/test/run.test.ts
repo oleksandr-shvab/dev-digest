@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredResult } from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
-import { reviewPullRequest } from '../src/index.js';
+import { reviewPullRequest, type PromptAssemblyRecord } from '../src/index.js';
 
 /**
  * Engine-level test for reviewPullRequest (the core lifted out of the server's
@@ -134,5 +134,43 @@ describe('reviewPullRequest (engine)', () => {
     await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: recorder, sessionId: 'sess-abc' });
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
+  });
+
+  it('promptLog: reports a size breakdown per LLM call and never the diff text', async () => {
+    const llm = new MockLLMProvider('openai', { structured: fixture });
+    const diff = await new MockGitClient().diff();
+    const records: PromptAssemblyRecord[] = [];
+
+    await reviewPullRequest({
+      systemPrompt: 'security reviewer',
+      model: 'gpt-4.1',
+      diff,
+      llm,
+      task: 'Review PR #482',
+      promptLog: {
+        detail: true,
+        countTokens: (t) => Math.ceil(t.length / 4),
+        onAssembled: (r) => records.push(r),
+      },
+    });
+
+    expect(records).toHaveLength(1);
+    const [r] = records;
+    expect(r!.chunk).toBe('all files');
+    expect(r!.sections.map((s) => s.name)).toContain('diff');
+    expect(r!.totalChars).toBe(r!.sections.reduce((n, s) => n + s.chars, 0));
+    expect(r!.totalTokens).toBe(r!.sections.reduce((n, s) => n + s.tokens!, 0));
+    // detail mode: per-file diff sizes, keyed by path
+    const diffItems = r!.sections.find((s) => s.name === 'diff')!.items!;
+    expect(diffItems.map((i) => i.label)).toEqual(diff.files.map((f) => f.path));
+    // sizes and labels only — the hardcoded key in the diff must not appear
+    expect(JSON.stringify(records)).not.toContain('sk_live_xxx');
+  });
+
+  it('promptLog: omitted → engine behaves as before (no hook, no token counting)', async () => {
+    const llm = new MockLLMProvider('openai', { structured: fixture });
+    const diff = await new MockGitClient().diff();
+    const outcome = await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm });
+    expect(outcome.mode).toBe('single-pass');
   });
 });

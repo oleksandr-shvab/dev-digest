@@ -25,6 +25,12 @@ async function main() {
     });
   }
 
+  if (config.promptLogDetailDowngraded) {
+    app.log.warn(
+      `PROMPT_LOG_DETAIL=full is honoured only with NODE_ENV=development (this is ${config.nodeEnv}) — using "summary"`,
+    );
+  }
+
   try {
     await app.listen({ port: config.apiPort, host: '0.0.0.0' });
     app.log.info(`DevDigest API listening on http://localhost:${config.apiPort}`);
