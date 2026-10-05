@@ -17,10 +17,29 @@ export {
   wrapUntrusted,
   type PromptParts,
   type AssembledPrompt,
+  type ReviewIntent,
+  type PromptSection,
+  type PromptSectionItem,
+  type PromptLogOptions,
 } from './prompt.js';
+
+// Intent layer — pure pieces of the PR intent classifier (reference parser,
+// changed-files outline, confidence rule, classifier prompt).
+export { parsePrReferences, type PrReferences } from './intent/references.js';
+export { changedFilesOutline } from './intent/outline.js';
+export { intentConfidence } from './intent/confidence.js';
+export {
+  buildIntentPrompt,
+  clampIntent,
+  type IntentMaterials,
+  type IntentPromptComponent,
+} from './intent/classifier-prompt.js';
 
 // Citation grounding — the mandatory mechanical gate for diff findings.
 export { groundFindings, groundingSummary, type GroundingResult } from './grounding.js';
+
+// Scope gate — drops out-of-scope findings below CRITICAL when an intent was given.
+export { dropOutOfScopeFindings, type ScopeGateResult } from './scope.js';
 
 // Structured-output helpers (Zod → JSON Schema + parse-with-repair).
 export {
@@ -40,6 +59,8 @@ export {
   DEFAULT_MAP_THRESHOLD_LINES,
   DEFAULT_REVIEW_MAX_RETRIES,
   type ReviewInput,
+  type PromptAssemblyRecord,
+  type PromptLogHook,
   type ReviewOutcome,
   type ReviewEvent,
   type ReviewStrategy,

@@ -6,7 +6,12 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
-import { MockLLMProvider, MockGitClient, MockEmbedder } from '../src/adapters/mocks.js';
+import {
+  MockLLMProvider,
+  MockGitClient,
+  MockEmbedder,
+  MockSecretsProvider,
+} from '../src/adapters/mocks.js';
 import type { StructuredRequest, StructuredResult, Review, RunTrace } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
@@ -65,6 +70,9 @@ d('skills in the review pipeline + stats (Testcontainers pg)', () => {
       config: config(),
       db: pg.handle.db,
       overrides: {
+        // Empty secrets: a review run now tries to derive the PR intent, which must
+        // not reach OpenRouter/GitHub with real credentials from ~/.devdigest/secrets.json.
+        secrets: new MockSecretsProvider(),
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         llm: { openai: llm },

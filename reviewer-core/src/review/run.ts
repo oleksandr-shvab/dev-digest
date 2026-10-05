@@ -7,8 +7,14 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import {
+  assemblePrompt,
+  type PromptSection,
+  type PromptSectionItem,
+  type ReviewIntent,
+} from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
+import { dropOutOfScopeFindings } from '../scope.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
 /**
@@ -41,6 +47,29 @@ export interface ReviewEvent {
   data?: unknown;
 }
 
+/** The size breakdown of one prompt sent to the model (one LLM call). */
+export interface PromptAssemblyRecord {
+  /** 'all files' in single-pass; the file path in map-reduce. */
+  chunk: string;
+  mode: ReviewMode;
+  sections: PromptSection[];
+  /** Sum of the sections' `chars`. */
+  totalChars: number;
+  /** Sum of the sections' `tokens`; absent when no `countTokens` was given. */
+  totalTokens?: number;
+}
+
+/**
+ * Opt-in prompt-assembly logging. The engine reports sizes and fixed labels only
+ * (see `PromptSection`); the caller adds model, correlation id and where to write.
+ */
+export interface PromptLogHook {
+  /** Per-item sizes inside each section (per skill, per spec chunk, per diff file). */
+  detail?: boolean;
+  countTokens?: (text: string) => number;
+  onAssembled: (record: PromptAssemblyRecord) => void;
+}
+
 export interface ReviewInput {
   /** Agent system prompt (trusted). */
   systemPrompt: string;
@@ -71,6 +100,12 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /**
+   * Derived PR intent. When set, it is rendered into the prompt and the scope
+   * gate runs after grounding — except for `low` confidence, where the intent
+   * is context only and nothing is filtered. Undefined → no section, no gate.
+   */
+  intent?: ReviewIntent;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -84,6 +119,8 @@ export interface ReviewInput {
   sessionId?: string;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
+  /** When set, called once per LLM call with the prompt's size breakdown. */
+  promptLog?: PromptLogHook;
   /**
    * Cancellation checkpoint, called before each (expensive) chunk LLM call.
    * Supply a function that THROWS to abort mid-run (the caller owns the error
@@ -99,6 +136,8 @@ export interface ReviewOutcome {
   grounding: string;
   /** Findings dropped by grounding, with reasons (for logs / "never go silent"). */
   dropped: { finding: Finding; reason: string }[];
+  /** Findings dropped by the scope gate (empty when it did not run), with reasons. */
+  scopeDropped: { finding: Finding; reason: string }[];
   /** Which path ran. */
   mode: ReviewMode;
   /** Prompt assembly (for the run trace). Single-pass: the one call; map-reduce: the whole-diff assembly. */
@@ -120,6 +159,16 @@ function selectMode(strategy: ReviewStrategy, diff: UnifiedDiff, threshold: numb
   return totalLines > threshold && diff.files.length > 1 ? 'map-reduce' : 'single-pass';
 }
 
+/** Per-file diff sizes for the log's `diff` section. Sizes only; the path is a label. */
+function diffItemsFor(
+  diff: UnifiedDiff,
+  chunk: { label: string; diffText: string },
+  mode: ReviewMode,
+): PromptSectionItem[] {
+  if (mode === 'map-reduce') return [{ label: chunk.label, chars: chunk.diffText.length }];
+  return diff.files.map((f) => ({ label: f.path, chars: sliceDiff(diff, f.path).length }));
+}
+
 export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutcome> {
   const threshold = input.mapThresholdLines ?? DEFAULT_MAP_THRESHOLD_LINES;
   const maxRetries = input.maxRetries ?? DEFAULT_REVIEW_MAX_RETRIES;
@@ -135,6 +184,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    intent: input.intent,
     task: input.task,
   };
 
@@ -169,8 +219,29 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       mode === 'map-reduce' ? `map: reviewing ${chunk.label}` : `Reviewing ${chunk.label} in one pass`,
       { file: chunk.label },
     );
-    const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
+    const a = assemblePrompt(
+      { ...promptParts, diff: chunk.diffText },
+      input.promptLog && {
+        detail: input.promptLog.detail ?? false,
+        ...(input.promptLog.countTokens ? { countTokens: input.promptLog.countTokens } : {}),
+        ...(input.promptLog.detail
+          ? { diffItems: diffItemsFor(input.diff, chunk, mode) }
+          : {}),
+      },
+    );
     if (mode === 'single-pass') assembly = a.assembly;
+    if (input.promptLog) {
+      const tokens = a.sections.map((s) => s.tokens);
+      input.promptLog.onAssembled({
+        chunk: chunk.label,
+        mode,
+        sections: a.sections,
+        totalChars: a.sections.reduce((n, s) => n + s.chars, 0),
+        ...(tokens.every((t): t is number => t !== undefined)
+          ? { totalTokens: tokens.reduce((n, t) => n + t, 0) }
+          : {}),
+      });
+    }
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,
@@ -201,13 +272,35 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   }
   emit('result', `Citation grounding: ${grounding}`);
 
-  // Score is derived from the findings that SURVIVED grounding (not the model's
-  // self-reported number, and not the pre-grounding set) so the score, the
-  // findings list, and the deterministic event always agree.
+  // Scope gate: only with an intent. A `low`-confidence intent is context for
+  // the reviewer, not a filter — it was guessed from too little to hide findings.
+  let surviving = ground.kept;
+  let scopeDropped: ReviewOutcome['scopeDropped'] = [];
+  if (input.intent?.confidence === 'low') {
+    emit('info', 'Scope gate skipped — the intent has low confidence');
+  } else if (input.intent) {
+    const scope = dropOutOfScopeFindings(ground.kept);
+    surviving = scope.kept;
+    scopeDropped = scope.dropped;
+    for (const d of scope.dropped) {
+      emit('info', `scope gate dropped "${d.finding.title}": ${d.reason}`);
+    }
+    for (const f of scope.kept) {
+      if (f.scope === 'out_of_scope') {
+        emit('info', `scope gate kept out-of-scope CRITICAL "${f.title}"`);
+      }
+    }
+    emit('result', `Scope gate: ${scope.kept.length}/${ground.kept.length} kept`);
+  }
+
+  // Score is derived from the findings that SURVIVED grounding and the scope
+  // gate (not the model's self-reported number, and not the pre-grounding set)
+  // so the score, the findings list, and the deterministic event always agree.
   return {
-    review: { ...merged, findings: ground.kept, score: scoreFromFindings(ground.kept) },
+    review: { ...merged, findings: surviving, score: scoreFromFindings(surviving) },
     grounding,
     dropped: ground.dropped,
+    scopeDropped,
     mode,
     assembly,
     chunks: chunks.map((c) => ({ label: c.label })),

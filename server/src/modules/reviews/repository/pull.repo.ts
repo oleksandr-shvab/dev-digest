@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { Db, Tx } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { Intent } from '@devdigest/shared';
+import type { Intent, IntentConfidence, IntentSource } from '@devdigest/shared';
 import type { PullRow } from '../../../db/rows.js';
 
 // ---- PR lookup (workspace-scoped) -----------------------------------------
@@ -46,23 +46,48 @@ export async function markReviewed(db: Db | Tx, prId: string, sha: string): Prom
 
 // ---- intent ---------------------------------------------------------------
 
-export async function upsertIntent(db: Db, prId: string, intent: Intent): Promise<void> {
-  await db
+export type PrIntentRow = typeof t.prIntent.$inferSelect;
+
+/** Everything one derivation stores about a PR's intent (one row per PR). */
+export type PrIntentValues = Intent & {
+  confidence: IntentConfidence;
+  sources: IntentSource[];
+  provider: string;
+  model: string;
+  headSha: string;
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number | null;
+};
+
+export async function upsertIntent(
+  db: Db,
+  prId: string,
+  values: PrIntentValues,
+): Promise<PrIntentRow> {
+  const columns = {
+    intent: values.intent,
+    inScope: values.in_scope,
+    outOfScope: values.out_of_scope,
+    confidence: values.confidence,
+    sources: values.sources,
+    provider: values.provider,
+    model: values.model,
+    headSha: values.headSha,
+    tokensIn: values.tokensIn,
+    tokensOut: values.tokensOut,
+    costUsd: values.costUsd,
+    derivedAt: new Date(),
+  };
+  const [row] = await db
     .insert(t.prIntent)
-    .values({
-      prId,
-      intent: intent.intent,
-      inScope: intent.in_scope,
-      outOfScope: intent.out_of_scope,
-    })
-    .onConflictDoUpdate({
-      target: t.prIntent.prId,
-      set: { intent: intent.intent, inScope: intent.in_scope, outOfScope: intent.out_of_scope },
-    });
+    .values({ prId, ...columns })
+    .onConflictDoUpdate({ target: t.prIntent.prId, set: columns })
+    .returning();
+  return row!;
 }
 
-export async function getIntent(db: Db, prId: string): Promise<Intent | undefined> {
+export async function getIntent(db: Db, prId: string): Promise<PrIntentRow | undefined> {
   const [row] = await db.select().from(t.prIntent).where(eq(t.prIntent.prId, prId));
-  if (!row) return undefined;
-  return { intent: row.intent, in_scope: row.inScope, out_of_scope: row.outOfScope };
+  return row;
 }

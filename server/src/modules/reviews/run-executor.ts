@@ -1,6 +1,11 @@
 import type { Container } from '../../platform/container.js';
 import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import {
+  reviewPullRequest,
+  countBlockers,
+  type PromptAssemblyRecord,
+  type ReviewIntent,
+} from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -8,6 +13,8 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { emitPromptLog } from './prompt-log.js';
+import type { IntentDeriver } from './intent-deriver.js';
 import { activeSkillLinks, formatSkillBlock, skillsLogLines } from '../skills/helpers.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -46,6 +53,7 @@ export class ReviewRunExecutor {
     private container: Container,
     private repo: ReviewRepository,
     private agents: Container['agentsRepo'],
+    private intents: IntentDeriver,
   ) {}
 
   /**
@@ -105,6 +113,9 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Shared pre-work: the PR intent (stored, else derived once). Never fails the run.
+    const intent = await this.loadOrDeriveIntent(workspaceId, pull, repo, diff, runLog);
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -112,7 +123,16 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+          agent,
+          runId,
+          runLog,
+          intent,
+        );
         logger?.info(
           {
             runId,
@@ -135,6 +155,50 @@ export class ReviewRunExecutor {
     }
   }
 
+  /**
+   * The PR's intent for this review: the stored row when there is one (used as
+   * is, even if stale — the user re-derives it from the PR page), else one fresh
+   * derivation. Never fails the review: any error is logged as `info` (an `error`
+   * event would raise a failure toast in the client and read as a failed run)
+   * and the review runs without intent.
+   */
+  private async loadOrDeriveIntent(
+    workspaceId: string,
+    pull: PullRow,
+    repo: typeof schema.repos.$inferSelect,
+    diff: UnifiedDiff,
+    runLog: RunLogger,
+  ): Promise<ReviewIntent | undefined> {
+    try {
+      const stored = await this.repo.getIntent(pull.id);
+      if (stored) {
+        runLog.info(
+          stored.headSha === pull.headSha
+            ? `Intent: using stored intent (confidence ${stored.confidence})`
+            : `Intent: stored intent is stale (derived at ${stored.headSha?.slice(0, 7) ?? 'unknown'}, PR head is ${pull.headSha.slice(0, 7)}) — used as is; re-derive it from the PR page`,
+        );
+      }
+      const row =
+        stored ??
+        (await this.intents.derive({
+          workspaceId,
+          pull,
+          repoRow: repo,
+          diff,
+          log: (kind, msg, data) => runLog.event(kind, msg, data),
+        }));
+      return {
+        intent: row.intent,
+        in_scope: row.inScope,
+        out_of_scope: row.outOfScope,
+        confidence: row.confidence,
+      };
+    } catch (err) {
+      runLog.info(`Intent derivation failed — review continues without intent: ${(err as Error).message}`);
+      return undefined;
+    }
+  }
+
   /** Execute a single agent's review against a PR, streaming progress. */
   private async runOneAgent(
     workspaceId: string,
@@ -144,12 +208,16 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    intent: ReviewIntent | undefined,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
     // events are already in this run's buffer, so the persisted trace below
     // (built from the buffer) includes them too.
-    const runLog = parentLog.forRun(runId, { agent: agent.name });
+    // `correlationId` rides on every stdout line of this run (and on the prompt
+    // log record); it is the agent run id, so it also matches the trace and SSE stream.
+    const runLog = parentLog.forRun(runId, { agent: agent.name, correlationId: runId });
+    const promptLogDetail = this.container.config.promptLogDetail;
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
@@ -220,9 +288,43 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived PR intent — rendered after the description; the engine's scope
+        // gate runs for it (skipped when its confidence is low). Omitted when none.
+        ...(intent ? { intent } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        // Prompt-assembly log: section sizes + sources, never the text. Off → the
+        // engine skips the token counting too.
+        ...(promptLogDetail !== 'off'
+          ? {
+              promptLog: {
+                detail: promptLogDetail === 'full',
+                countTokens: (text: string) => this.container.tokenizer.count(text),
+                onAssembled: (record: PromptAssemblyRecord) =>
+                  emitPromptLog(
+                    {
+                      event: (msg, data) => runLog.event('info', msg, data),
+                      local: (msg, data) => runLog.local(msg, data),
+                    },
+                    promptLogDetail,
+                    {
+                      feature: 'review',
+                      correlationId: runId,
+                      provider: agent.provider,
+                      model: agent.model,
+                      label: 'Prompt assembled',
+                    },
+                    {
+                      scope: record.chunk,
+                      sections: record.sections,
+                      totalChars: record.totalChars,
+                      ...(record.totalTokens !== undefined ? { totalTokens: record.totalTokens } : {}),
+                    },
+                  ),
+              },
+            }
+          : {}),
         checkCancelled: () => {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },

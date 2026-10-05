@@ -140,6 +140,11 @@ export interface CommitFilesPayload {
   files: CommitFile[];
 }
 
+/** Outcome of reading one repository file at a commit (expected failures are values, not throws). */
+export type CommitFileResult =
+  | { ok: true; content: string }
+  | { ok: false; reason: 'invalid_path' | 'not_found' | 'not_regular_file' | 'too_large' };
+
 export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
@@ -162,6 +167,19 @@ export interface GitHubClient {
   /** The open PR whose head is `branch`, if any (so re-publish reuses it). */
   findOpenPr(repo: RepoRef, branch: string): Promise<{ url: string } | null>;
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
+  /**
+   * Reads one file as recorded at commit `sha` (the PR head), through the
+   * repository contents endpoint. Never touches the local clone. Directories,
+   * symlinks and submodules are `not_regular_file`; a file over `maxBytes` is
+   * `too_large`. A path that could leave the repository is `invalid_path`
+   * before any request is made.
+   */
+  getFileAtCommit(
+    repo: RepoRef,
+    sha: string,
+    path: string,
+    maxBytes: number,
+  ): Promise<CommitFileResult>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
 }

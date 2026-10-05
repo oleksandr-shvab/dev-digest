@@ -11,8 +11,10 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  CommitFileResult,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
+import { isSafeRepoPath, toCommitFileResult } from './repo-file.js';
 
 const TIMEOUT = 30_000;
 
@@ -361,6 +363,36 @@ export class OctokitGitHubClient implements GitHubClient {
       body: res.data.body,
       state: res.data.state,
     };
+  }
+
+  async getFileAtCommit(
+    repo: RepoRef,
+    sha: string,
+    path: string,
+    maxBytes: number,
+  ): Promise<CommitFileResult> {
+    if (!/^[0-9a-f]{7,64}$/i.test(sha)) throw new Error('Invalid commit sha');
+    // Validated before any request: nothing from a PR's text is ever sent as-is.
+    if (!isSafeRepoPath(path)) return { ok: false, reason: 'invalid_path' };
+    let data: unknown;
+    try {
+      const res = await withRetry(() =>
+        withTimeout(
+          this.octokit.rest.repos.getContent({
+            owner: repo.owner,
+            repo: repo.name,
+            path,
+            ref: sha,
+          }),
+          TIMEOUT,
+        ),
+      );
+      data = res.data;
+    } catch (err) {
+      if ((err as { status?: number })?.status === 404) return { ok: false, reason: 'not_found' };
+      throw err;
+    }
+    return toCommitFileResult(data, maxBytes);
   }
 
   async currentLogin(): Promise<string> {

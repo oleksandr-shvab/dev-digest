@@ -157,3 +157,65 @@ describe('assemblePrompt — ## Skills / rules', () => {
     expect(sys).not.toContain('Body A');
   });
 });
+
+describe('assemblePrompt — sections (the size breakdown used for logging)', () => {
+  const SECRET = 'sk_live_SENTINEL_SECRET';
+  const SPEC = 'PRIVATE-SPEC-SENTINEL';
+  const parts = {
+    system: 'sys',
+    task: 'Review PR #1',
+    prDescription: 'adds a limiter',
+    skills: ['skill A body', 'skill B body'],
+    specs: [SPEC],
+    diff: `+const k = '${SECRET}';`,
+  };
+
+  it('lists sections in prompt order with fixed names and sources', () => {
+    const { sections } = assemblePrompt(parts);
+    expect(sections.map((s) => [s.name, s.source])).toEqual([
+      ['system', 'agent.system_prompt'],
+      ['task', 'review.task_line'],
+      ['pr_description', 'pull_requests.body'],
+      ['skills', 'agent.skills'],
+      ['specs', 'project_context.specs'],
+      ['diff', 'git.diff'],
+    ]);
+  });
+
+  it('measures what was actually sent: user sections plus separators equal the user message', () => {
+    const { sections, messages } = assemblePrompt(parts);
+    const userSections = sections.filter((s) => s.name !== 'system');
+    const joined = userSections.reduce((n, s) => n + s.chars, 0) + 2 * (userSections.length - 1);
+    expect(joined).toBe(messages[1]!.content.length);
+    expect(sections[0]!.chars).toBe(messages[0]!.content.length);
+  });
+
+  it('never carries prompt text: the serialized sections hold no diff, spec or secret', () => {
+    const json = JSON.stringify(assemblePrompt(parts, { detail: true }).sections);
+    expect(json).not.toContain(SECRET);
+    expect(json).not.toContain(SPEC);
+    expect(json).not.toContain('adds a limiter');
+    expect(json).not.toContain('skill A body');
+  });
+
+  it('adds tokens only when a counter is given, and items only in detail mode', () => {
+    const plain = assemblePrompt(parts).sections;
+    expect(plain.every((s) => s.tokens === undefined && s.items === undefined)).toBe(true);
+
+    const counted = assemblePrompt(parts, { countTokens: (t) => t.length }).sections;
+    expect(counted.every((s) => s.tokens === s.chars)).toBe(true);
+    expect(counted.every((s) => s.items === undefined)).toBe(true);
+
+    const detailed = assemblePrompt(parts, { detail: true }).sections;
+    expect(detailed.find((s) => s.name === 'skills')!.items!.map((i) => i.label)).toEqual([
+      'skill-0',
+      'skill-1',
+    ]);
+    expect(detailed.find((s) => s.name === 'specs')!.items!.map((i) => i.label)).toEqual(['spec-0']);
+  });
+
+  it('does not change the messages', () => {
+    const base = assemblePrompt(parts).messages;
+    expect(assemblePrompt(parts, { detail: true, countTokens: (t) => t.length }).messages).toEqual(base);
+  });
+});
