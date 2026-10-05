@@ -1,0 +1,1 @@
+export { SkillsApplied } from "./SkillsApplied";

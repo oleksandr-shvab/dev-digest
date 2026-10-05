@@ -6,7 +6,9 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { TEST_QUALITY_SKILLS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -17,8 +19,8 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * workspace/user and the demo fixtures.
  *
  * Seeds: default workspace + system user + membership, default settings,
- * demo repo (acme/payments-api), the three built-in agents (General +
- * Security + Performance, all on the default openrouter/deepseek-v4-flash
+ * demo repo (acme/payments-api), the four built-in agents (General +
+ * Security + Performance + Test Quality, all on the default openrouter/deepseek-v4-flash
  * provider+model), and PR #482 with files/commits, a sample review with a
  * few findings, and a finished multi-agent run batch (so the PR list COST
  * column, the Agent Runs timeline, and a run's trace drawer all have real
@@ -94,7 +96,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
   }
   const repoId = repo!.id;
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (the four starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   // Seeded BEFORE PR #482 below, which references these agents' ids when
   // seeding a demo agent_runs batch.
@@ -117,6 +119,17 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       provider: DEFAULT_PROVIDER,
       model: DEFAULT_MODEL,
       systemPrompt: SECURITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks tests for uncovered branches, missed corner cases, over-mocking and flakiness.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
       enabled: true,
       version: 1,
       createdBy: userId,
@@ -152,6 +165,51 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     .select()
     .from(t.agents)
     .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Performance Reviewer')));
+
+  // ---- Test Quality Reviewer skills (skills spec) ----
+  // Idempotent: upsert by (workspace_id, name); v1 "Initial version"; linked in
+  // order. Existing skills/links are left untouched on re-seed (user edits win).
+  const [testQualityAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
+  for (const [order, def] of TEST_QUALITY_SKILLS.entries()) {
+    const [inserted] = await db
+      .insert(t.skills)
+      .values({
+        workspaceId,
+        name: def.name,
+        description: def.description,
+        type: def.type,
+        source: 'manual',
+        body: def.body,
+        version: 1,
+      })
+      .onConflictDoNothing({ target: [t.skills.workspaceId, t.skills.name] })
+      .returning();
+    const skill =
+      inserted ??
+      (
+        await db
+          .select()
+          .from(t.skills)
+          .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, def.name)))
+      )[0]!;
+    if (inserted) {
+      await db.insert(t.skillVersions).values({
+        skillId: skill.id,
+        version: 1,
+        body: skill.body,
+        description: skill.description,
+        type: skill.type,
+        message: 'Initial version',
+      });
+    }
+    await db
+      .insert(t.agentSkills)
+      .values({ agentId: testQualityAgent!.id, skillId: skill.id, order })
+      .onConflictDoNothing();
+  }
 
   // ---- PR #482 (rate limiting) ----
   let [pr] = await db
@@ -343,6 +401,59 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         findingsCount: 0,
         grounding: '0/0 passed',
         error: '429 You exceeded your current quota, please check your plan and billing details.',
+      },
+    ]);
+  }
+
+  // ---- demo conventions (client spec: e2e/specs/09-conventions.flow.json is
+  // deterministic — no LLM — so it triages pre-seeded rows instead of scanning).
+  // Idempotent: skip if this repo already has any (seeded once, then the flow
+  // and any manual triage own them).
+  const [existingConvention] = await db
+    .select({ id: t.conventions.id })
+    .from(t.conventions)
+    .where(eq(t.conventions.repoId, repoId));
+  if (!existingConvention) {
+    await db.insert(t.conventions).values([
+      {
+        workspaceId,
+        repoId,
+        category: 'error-handling',
+        rule: 'Route handlers return a typed AppError instead of throwing a raw Error.',
+        evidencePath: 'server/src/modules/pulls/routes.ts',
+        evidenceLine: 42,
+        evidenceSnippet: "throw new NotFoundError('Pull request not found');",
+        confidence: 0.9,
+      },
+      {
+        workspaceId,
+        repoId,
+        category: 'naming',
+        rule: 'Repository classes are named <Domain>Repository.',
+        evidencePath: 'server/src/modules/pulls/repository.ts',
+        evidenceLine: 1,
+        evidenceSnippet: 'export class PullsRepository {',
+        confidence: 0.85,
+      },
+      {
+        workspaceId,
+        repoId,
+        category: 'testing',
+        rule: 'Integration tests are named *.it.test.ts and skip when Docker is unavailable.',
+        evidencePath: 'server/test/reviews.it.test.ts',
+        evidenceLine: 11,
+        evidenceSnippet: 'const d = hasDocker ? describe : describe.skip;',
+        confidence: 0.7,
+      },
+      {
+        workspaceId,
+        repoId,
+        category: 'imports',
+        rule: 'Cross-module imports go through a module barrel, never a sibling module’s internals.',
+        evidencePath: 'server/src/modules/reviews/run-executor.ts',
+        evidenceLine: 5,
+        evidenceSnippet: "import { SkillsRepository } from '../skills/repository.js';",
+        confidence: 0.55,
       },
     ]);
   }

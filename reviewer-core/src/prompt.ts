@@ -39,7 +39,14 @@ const MAX_PR_DESCRIPTION_CHARS = 4000;
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
-  /** Linked skill bodies (trusted-ish; community skills should be sanitized upstream). */
+  /**
+   * Linked skill blocks, in the agent's order. Rendered as instructions, NOT
+   * wrapped in `<untrusted>` — wrapping would stop them working as rules.
+   * Trust is handled upstream instead: imported skills go through a mandatory
+   * preview + user confirmation, carry a visible `source`, are recorded with
+   * provenance in the run trace, and `INJECTION_GUARD` stays last in the system
+   * prompt. Empty/undefined → section omitted.
+   */
   skills?: string[];
   /** Relevant memory items (trusted, curated). */
   memory?: string[];

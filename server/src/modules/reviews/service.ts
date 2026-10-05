@@ -81,12 +81,26 @@ export class ReviewService {
    * checkpoint AND marks the DB row cancelled + completes the bus immediately —
    * so cancel also works for ORPHANED runs (whose background process died on a
    * server restart) where signalling alone would do nothing.
+   *
+   * Workspace-scoped: `runBus` itself is keyed by bare `runId` (no workspace
+   * dimension), so ownership is checked here, before touching the bus —
+   * otherwise a caller could cancel/interrupt a run it doesn't own just by
+   * guessing its id. Returns false (no-op) if `runId` isn't in `workspaceId`.
    */
-  async cancelRun(runId: string): Promise<void> {
+  async cancelRun(workspaceId: string, runId: string): Promise<boolean> {
+    const owned = await this.repo.runBelongsToWorkspace(workspaceId, runId);
+    if (!owned) return false;
     this.publish(runId, 'info', 'Cancellation requested — stopping…');
     this.container.runBus.cancel(runId);
-    await this.repo.cancelRunIfRunning(runId);
+    await this.repo.cancelRunIfRunning(workspaceId, runId);
     this.container.runBus.complete(runId);
+    return true;
+  }
+
+  /** Whether `runId` belongs to `workspaceId` — see `cancelRun`'s doc for why
+   *  this check exists independently of the DB-level scoping. */
+  runBelongsToWorkspace(workspaceId: string, runId: string): Promise<boolean> {
+    return this.repo.runBelongsToWorkspace(workspaceId, runId);
   }
 
   /** Reap runs left 'running' by a previous (now-dead) process. Called on boot. */
@@ -179,7 +193,7 @@ export class ReviewService {
     );
   }
 
-  async getRunTrace(runId: string): Promise<RunTrace | undefined> {
-    return this.repo.getRunTrace(runId);
+  async getRunTrace(workspaceId: string, runId: string): Promise<RunTrace | undefined> {
+    return this.repo.getRunTrace(workspaceId, runId);
   }
 }

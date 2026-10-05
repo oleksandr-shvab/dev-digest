@@ -1,5 +1,4 @@
-/* AgentCard — model chip, skills count, enabled toggle. Stats are an A5 mount;
-   we render the provider/model + skill count here. */
+/* AgentCard — model chip, skills count (agent.skill_count), enabled toggle. Stats are an A5 mount. */
 "use client";
 
 import React from "react";
@@ -26,8 +25,19 @@ export function AgentCard({
   const t = useTranslations("agents");
   const del = useDeleteAgent();
   const color = modelColor(ag.model);
+  // Explicit prop wins; otherwise the server-computed count (enabled links to enabled skills).
+  const skills = skillCount ?? ag.skill_count;
   return (
-    <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={!!active}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onClick?.();
+      }}
+      style={s.card(!!active, ag.enabled)}
+    >
       <div style={s.headerRow}>
         <div style={s.iconBox}>
           <Icon.Cpu size={15} />
@@ -63,9 +73,9 @@ export function AgentCard({
         <span className="mono" style={s.modelChip(color)}>
           {ag.model}
         </span>
-        {skillCount != null && (
+        {skills != null && (
           <Badge color="var(--text-secondary)" icon="Sparkles">
-            {t("card.skillCount", { count: skillCount })}
+            {t("card.skillCount", { count: skills })}
           </Badge>
         )}
       </div>

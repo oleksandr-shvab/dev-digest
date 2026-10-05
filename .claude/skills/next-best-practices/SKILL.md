@@ -6,7 +6,10 @@ user-invocable: false
 
 # Next.js Best Practices
 
-Apply these rules when writing or reviewing Next.js code.
+Apply these rules when writing or reviewing Next.js code. For *where*
+feature code/business logic/constants live relative to the `app/` routing
+tree — as opposed to the file-convention syntax below — see
+[frontend-ui-architecture](../frontend-ui-architecture/SKILL.md).
 
 ## File Conventions
 

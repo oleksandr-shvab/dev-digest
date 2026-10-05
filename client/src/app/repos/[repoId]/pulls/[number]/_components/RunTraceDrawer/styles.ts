@@ -97,6 +97,12 @@ export const s = {
   specsWrap: { display: "flex", gap: 6, flexWrap: "wrap" } satisfies CSSProperties,
   specsNone: { color: "var(--text-muted)" } satisfies CSSProperties,
   spec: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
+
+  // ---- SkillsApplied ----
+  skillsApplied: { margin: "0 0 14px" } satisfies CSSProperties,
+  skillsAppliedTitle: { fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 } satisfies CSSProperties,
+  skillsAppliedList: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 } satisfies CSSProperties,
+  skillsAppliedItem: { fontSize: 12.5, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
   statsRow: { display: "flex", gap: 10 } satisfies CSSProperties,
   rawPre: {
     margin: 0,

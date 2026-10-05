@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import { CiFailOn, Provider, ReviewStrategy, SetAgentSkillsInput } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -24,8 +24,9 @@ const VersionParams = z.object({
  *   PUT    /agents/:id              → update / toggle enabled (versions config)
  *   GET    /agents/:id/versions     → config history (newest first)
  *   GET    /agents/:id/versions/:version → one config snapshot
- *   GET    /agents/:id/skills       → linked skills (ordered)
- *   POST   /agents/:id/skills       → set/reorder linked skills OR link one
+ *   GET    /agents/:id/skills       → linked skills (ordered) as AgentSkill[]
+ *   PUT    /agents/:id/skills       → replace the ordered set (transactional, bumps version)
+ *   POST   /agents/:id/skills       → legacy: set/reorder linked skills OR link one
  *   GET    /agents/:id/models       → dynamic model list for the agent's provider
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
  */
@@ -144,10 +145,21 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
 
   app.get('/agents/:id/skills', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
-    const agent = await service.get(workspaceId, req.params.id);
-    if (!agent) throw new NotFoundError('Agent not found');
-    return service.skillLinks(req.params.id);
+    const skills = await service.agentSkills(workspaceId, req.params.id);
+    if (!skills) throw new NotFoundError('Agent not found');
+    return skills;
   });
+
+  app.put(
+    '/agents/:id/skills',
+    { schema: { params: IdParams, body: SetAgentSkillsInput } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const skills = await service.setAgentSkills(workspaceId, req.params.id, req.body.items);
+      if (!skills) throw new NotFoundError('Agent not found');
+      return skills;
+    },
+  );
 
   app.post(
     '/agents/:id/skills',

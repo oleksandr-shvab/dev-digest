@@ -7,19 +7,21 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
-      "fromFile": "Import from file",
+      "fromFile": "Import from file…",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
     },
     "empty": {
       "title": "No skills yet",
-      "body": "Import a skill from a file, a URL, or the community catalog.",
-      "cta": "Import from file"
+      "body": "A skill is a reusable rule your agents apply during review. Write one or import it from a file.",
+      "cta": "Create skill",
+      "importCta": "Import from file…"
     },
     "selectPrompt": {
       "title": "Select a skill",
-      "body": "Pick a skill on the left to preview its body."
-    }
+      "body": "Pick a skill on the left to see and edit it, or create a new one."
+    },
+    "createSkill": "Create skill"
   },
   "detail": {
     "crumbSkill": "Skill",
@@ -28,7 +30,14 @@
     "notFound": {
       "title": "Skill not found",
       "body": "It may have been deleted."
-    }
+    },
+    "newTitle": "New skill",
+    "runOnEvals": "Run on evals",
+    "evalsTooltip": "Evals arrive in a later lesson",
+    "menuLabel": "Skill actions",
+    "delete": "Delete",
+    "deleteConfirm": "Used by {count, plural, one {# agent} other {# agents}} — it will be unlinked from them.",
+    "deleted": "Skill deleted"
   },
   "drawer": {
     "title": "Add a skill",
@@ -84,7 +93,8 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
-      "imported_url": "Imported"
+      "imported_url": "Imported",
+      "imported_file": "Imported"
     }
   },
   "preview": {
@@ -96,6 +106,134 @@
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "version": "v{version}",
+    "title": "Preview",
+    "caption": "Rendered as the reviewing agent receives it.",
+    "unsavedNote": "You have unsaved edits — the preview shows the saved version.",
+    "empty": "This skill has no body."
+  },
+  "tabs": {
+    "config": "Config",
+    "preview": "Preview",
+    "evals": "Evals",
+    "stats": "Stats",
+    "versions": "Versions"
+  },
+  "card": {
+    "noDescription": "No description",
+    "toggle": "Enable {name}",
+    "footer": "{agents} · {pull} pull · <accept>{rate} accept</accept>",
+    "agents": "{count, plural, one {# agent} other {# agents}}"
+  },
+  "config": {
+    "title": "Configuration",
+    "enabled": "Enabled",
+    "name": "Name",
+    "nameHint": "Lowercase kebab-case, e.g. uncovered-branches.",
+    "nameRequired": "Name is required.",
+    "nameInvalid": "Use lowercase letters, numbers and single dashes (e.g. uncovered-branches).",
+    "nameTaken": "Name already used",
+    "description": "Description",
+    "descriptionHint": "This is the skill's interface — write it as a directive: 'Flag…', 'Check that…'.",
+    "descriptionRequired": "Description is required.",
+    "type": "Type",
+    "body": "Skill body",
+    "bodyRequired": "Skill body is required.",
+    "bodyTooLong": "Skill body is too long (max {max} characters).",
+    "usedBy": "Used by {count, plural, one {# agent} other {# agents}} — changes apply to all of them.",
+    "whatChanged": "What changed?",
+    "whatChangedPlaceholder": "Edited",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "savedVersion": "Saved as v{version}",
+    "saved": "Saved",
+    "created": "Skill created",
+    "leaveConfirm": "You have unsaved changes to this skill. Leave without saving?",
+    "importedNotice": "Imported from <code>{file}</code> — review the instructions: this text goes into your agents' prompts.",
+    "importedNoticeNoFile": "Imported from a file — review the instructions: this text goes into your agents' prompts."
+  },
+  "editor": {
+    "unsaved": "unsaved",
+    "tokens": "~{count} tokens",
+    "bodyLabel": "Skill body",
+    "untitled": "untitled"
+  },
+  "evals": {
+    "emptyTitle": "Evals for skills arrive in a later lesson.",
+    "emptyBody": "You will be able to score a skill against a set of labelled cases."
+  },
+  "stats": {
+    "caption": "Last 30 days · runs this skill was part of",
+    "loadError": "Could not load stats.",
+    "usedBy": "USED BY",
+    "agentsSuffix": " {count, plural, one {agent} other {agents}}",
+    "pull": "PULL FREQUENCY",
+    "accept": "ACCEPT RATE",
+    "findings": "FINDINGS (30D)",
+    "noRuns": "No runs yet",
+    "noTriaged": "No triaged findings",
+    "agentsUsing": "Agents using this skill",
+    "noAgents": "No agent uses this skill yet.",
+    "disabled": "disabled",
+    "open": "Open",
+    "byCategory": "Findings by category",
+    "noFindings": "No findings from runs that used this skill.",
+    "footnote": "Correlation: findings from runs where this skill was in the prompt, not findings caused by it."
+  },
+  "versions": {
+    "title": "Version history",
+    "caption": "Every save snapshots the body so eval runs stay reproducible against the exact text they scored.",
+    "loadError": "Could not load versions.",
+    "current": "Current",
+    "diff": "Diff",
+    "diffAria": "Diff v{version} with current",
+    "restore": "Restore",
+    "restoreAria": "Restore v{version}",
+    "restoreConfirm": "Creates v{next} with the content of v{version}. History is kept.",
+    "restored": "Restored v{from} as v{version}",
+    "diffTitle": "v{from} → v{to} (current)",
+    "body": "Body",
+    "description": "Description",
+    "type": "Type",
+    "noChanges": "No differences.",
+    "close": "Close",
+    "restoreTitle": "Restore v{version}?",
+    "confirmRestore": "Confirm restore",
+    "cancel": "Cancel"
+  },
+  "import": {
+    "title": "Import skill from file",
+    "subtitle": "Nothing is saved until you click Save.",
+    "dropTitle": "Drop a .md or .zip file here, or click to choose",
+    "dropHint": "Accepts .md and .zip · max 1 MB",
+    "inputLabel": "Skill file",
+    "parsing": "Reading file…",
+    "tooLarge": "That file is larger than 1 MB.",
+    "wrongType": "Only .md and .zip files can be imported.",
+    "failed": "Could not read this file.",
+    "chooseAnother": "Choose another file",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "body": "Skill body",
+    "rendered": "Rendered",
+    "raw": "Raw",
+    "tokens": "~{count} tokens",
+    "ignoredTitle": "Ignored files",
+    "ignoredEntry": "{path} — {reason}",
+    "reason": {
+      "script": "script, not imported",
+      "binary": "binary, not imported",
+      "non-skill-file": "not part of the skill, not imported"
+    },
+    "warnings": "Warnings",
+    "nameConflict": "A skill named “{name}” already exists. Rename this one to save it.",
+    "nameInvalid": "Use lowercase letters, numbers and single dashes.",
+    "trust": "This skill was written by someone else. Its text becomes instructions in your agents' prompts. Scripts and other files are never run or stored.",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "saved": "Imported “{name}”"
   }
 }

@@ -1,0 +1,145 @@
+{
+  "_comment": "Machine-readable routing for pr-self-review. `*` = any chars but '/', `**` = anything. A file is routed to the UNION of skills of every rule it matches. See routing.md for the reasoning.",
+  "exclude": [
+    "dev-digest",
+    "dev-digest/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "**/*.tsbuildinfo",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "**/yarn.lock",
+    "skills-lock.json",
+    "server/src/db/migrations/meta/**",
+    "**/*.png",
+    "**/*.jpg",
+    "**/*.jpeg",
+    "**/*.gif",
+    "**/*.webp",
+    "**/*.ico",
+    "**/*.pdf",
+    "**/*.woff",
+    "**/*.woff2",
+    "**/*.ttf",
+    "**/*.zip",
+    "**/*.gz"
+  ],
+  "not_reviewers": ["mermaid-diagram", "engineering-insights", "pr-self-review"],
+  "reviewers": {
+    "project-rules": { "instructions": ".claude/skills/pr-self-review/project-rules.md" }
+  },
+  "rules": [
+    {
+      "id": "client-react",
+      "match": ["client/src/**/*.ts", "client/src/**/*.tsx"],
+      "exclude": ["client/src/vendor/**", "client/src/test/**", "**/*.test.ts", "**/*.test.tsx"],
+      "skills": ["react-best-practices", "frontend-ui-architecture", "typescript-expert"]
+    },
+    {
+      "id": "client-next",
+      "match": ["client/src/app/**/*.ts", "client/src/app/**/*.tsx", "client/next.config.*", "client/middleware.ts"],
+      "exclude": ["client/src/vendor/**", "**/*.test.ts", "**/*.test.tsx"],
+      "skills": ["next-best-practices"]
+    },
+    {
+      "id": "client-tests",
+      "match": ["client/**/*.test.ts", "client/**/*.test.tsx", "client/src/test/**"],
+      "skills": ["react-testing-library"]
+    },
+    {
+      "id": "backend-layering",
+      "match": ["server/src/**/*.ts", "reviewer-core/src/**/*.ts"],
+      "exclude": ["server/src/vendor/**", "server/src/db/migrations/**"],
+      "skills": ["onion-architecture", "typescript-expert"]
+    },
+    {
+      "id": "backend-http",
+      "match": [
+        "server/src/app.ts",
+        "server/src/server.ts",
+        "server/src/modules/index.ts",
+        "server/src/modules/**/routes.ts",
+        "server/src/modules/**/routes/**/*.ts",
+        "server/src/modules/**/*.routes.ts",
+        "server/src/platform/sse.ts",
+        "server/src/platform/errors.ts",
+        "server/src/platform/config.ts",
+        "server/test/**/*.it.test.ts"
+      ],
+      "skills": ["fastify-best-practices"]
+    },
+    {
+      "id": "backend-persistence",
+      "match": [
+        "server/src/db/**/*.ts",
+        "server/src/modules/**/repository.ts",
+        "server/src/modules/**/repository/**/*.ts"
+      ],
+      "skills": ["drizzle-orm-patterns"]
+    },
+    {
+      "id": "backend-schema",
+      "match": ["server/src/db/schema.ts", "server/src/db/schema/**/*.ts", "server/src/db/migrations/*.sql"],
+      "skills": ["postgresql-table-design"]
+    },
+    {
+      "id": "zod-vendored-contracts",
+      "match": ["server/src/vendor/shared/**", "client/src/vendor/shared/**"],
+      "skills": ["zod"]
+    },
+    {
+      "id": "zod-usage",
+      "match": ["server/src/**/*.ts", "client/src/**/*.ts", "client/src/**/*.tsx", "reviewer-core/src/**/*.ts"],
+      "exclude": ["**/*.test.ts", "**/*.test.tsx"],
+      "content": "from [\"']zod[\"']",
+      "skills": ["zod"]
+    },
+    {
+      "id": "security-code",
+      "match": [
+        "server/src/**/*.ts",
+        "client/src/**/*.ts",
+        "client/src/**/*.tsx",
+        "reviewer-core/src/**/*.ts",
+        "scripts/**",
+        "docker-compose.yml",
+        ".github/workflows/**"
+      ],
+      "exclude": ["**/*.test.ts", "**/*.test.tsx", "client/src/vendor/ui/**", "server/src/db/migrations/**"],
+      "skills": ["security"]
+    },
+    {
+      "id": "project-rules",
+      "match": [
+        "server/**",
+        "client/**",
+        "reviewer-core/**",
+        "e2e/**",
+        "scripts/**",
+        ".github/**",
+        "docker-compose.yml",
+        "docs/agent-prompts/**"
+      ],
+      "exclude": ["**/*.test.ts", "**/*.test.tsx", "server/src/db/migrations/*.sql"],
+      "skills": ["project-rules"]
+    }
+  ],
+  "scope_fallback": {
+    "_comment": "Applied to a discovered skill that no rule mentions (scope taken from .claude/skills/README.md). It still runs, and is reported as `unrouted` so someone adds a real rule.",
+    "Frontend": {
+      "match": ["client/src/**/*.ts", "client/src/**/*.tsx"],
+      "exclude": ["client/src/vendor/**", "**/*.test.ts", "**/*.test.tsx"]
+    },
+    "Backend": {
+      "match": ["server/src/**/*.ts", "reviewer-core/src/**/*.ts"],
+      "exclude": ["server/src/vendor/**", "**/*.test.ts"]
+    },
+    "Full-stack": {
+      "match": ["server/src/**/*.ts", "client/src/**/*.ts", "client/src/**/*.tsx", "reviewer-core/src/**/*.ts"],
+      "exclude": ["client/src/vendor/**", "server/src/vendor/**", "**/*.test.ts", "**/*.test.tsx"]
+    }
+  }
+}

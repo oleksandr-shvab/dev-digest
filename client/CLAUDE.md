@@ -10,7 +10,7 @@ Next.js 15 / React 19 web app (the studio UI). See root
 ## Map
 
 - `src/app/` — Next.js App Router pages: `repos/[repoId]/pulls/[number]` (PR
-  detail — findings, diff, overview tabs), `agents/`, `settings/`,
+  detail — findings, diff, overview tabs), `agents/`, `skills/`, `settings/`,
   `onboarding/`.
 - `src/components/` — shared UI: `app-shell`, `page-shell`, `diff-viewer`,
   `mermaid-diagram`, `repo-not-found`, `showcase`.

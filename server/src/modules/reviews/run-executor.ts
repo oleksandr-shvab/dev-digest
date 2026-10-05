@@ -8,6 +8,7 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { activeSkillLinks, formatSkillBlock, skillsLogLines } from '../skills/helpers.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -183,6 +184,20 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills (Decisions 2-3): enabled globally AND for this agent, in the
+      // agent's order, each rendered as its own block. Empty → `skills` is
+      // omitted so the prompt is identical to an agent with no skills.
+      const skillLinks = activeSkillLinks(await this.agents.linkedSkills(agent.id));
+      const skillBlocks = skillLinks.map((l) => formatSkillBlock(l.skill));
+      const skillsApplied = skillLinks.map((l, i) => ({
+        id: l.skill.id,
+        name: l.skill.name,
+        version: l.skill.version,
+        source: l.skill.source,
+        tokens: this.container.tokenizer.count(skillBlocks[i]!),
+      }));
+      for (const line of skillsLogLines(skillsApplied)) runLog.info(line);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -200,6 +215,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Linked skills, one block each; omitted when none are active.
+        ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -213,45 +230,52 @@ export class ReviewRunExecutor {
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
-
-      // ---- Persist review + findings ----------------------------------------
-      const review = await this.repo.insertReview({
-        workspaceId,
-        prId: pull.id,
-        agentId: agent.id,
-        runId,
-        kind: 'review',
-        verdict: outcome.review.verdict,
-        summary: outcome.review.summary,
-        score: outcome.review.score,
-        model: agent.model,
-      });
-      const findingRows = await this.repo.insertFindings(review.id, keptFindings);
-      runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
-
-      // Mark the commit this review ran against so the PR list can tell
-      // reviewed / needs-review (head moved) / stale apart.
-      await this.repo.markReviewed(pull.id, pull.headSha);
-
       const durationMs = Date.now() - start;
 
       // Deterministic blocker count (severity ≥ the agent's gate) — the signal
       // the timeline colors on, NOT the model's self-reported verdict.
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
 
-      // ---- Observability: agent_runs + ONE run_traces document --------------
-      await this.repo.completeAgentRun(runId, {
-        status: 'done',
-        durationMs,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        findingsCount: findingRows.length,
-        grounding,
-        score: outcome.review.score,
-        blockers,
-        error: null,
+      // ---- Persist review + findings + last_reviewed_sha + agent_runs -------
+      // Atomic: see `ReviewRepository.persistRunOutcome`'s doc for why these
+      // four writes must succeed or fail together.
+      const { review, findings: findingRows } = await this.repo.persistRunOutcome({
+        review: {
+          workspaceId,
+          prId: pull.id,
+          agentId: agent.id,
+          runId,
+          kind: 'review',
+          verdict: outcome.review.verdict,
+          summary: outcome.review.summary,
+          score: outcome.review.score,
+          model: agent.model,
+        },
+        findings: keptFindings,
+        markReviewedSha: pull.headSha,
+        // Only completed runs record applied skills (failed/cancelled write none).
+        runSkills: skillsApplied.map((s) => ({
+          skillId: s.id,
+          skillVersion: s.version,
+          tokens: s.tokens,
+        })),
+        completeRun: {
+          runId,
+          values: {
+            status: 'done',
+            durationMs,
+            tokensIn,
+            tokensOut,
+            costUsd,
+            findingsCount: keptFindings.length,
+            grounding,
+            score: outcome.review.score,
+            blockers,
+            error: null,
+          },
+        },
       });
+      runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
 
       const trace: RunTrace = {
         config: {
@@ -280,6 +304,7 @@ export class ReviewRunExecutor {
         raw_output: outcome.raw,
         memory_pulled: [],
         specs_read: [],
+        ...(skillsApplied.length > 0 ? { skills_applied: skillsApplied } : {}),
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),

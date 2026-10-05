@@ -84,6 +84,18 @@ export const RunTrace = z.object({
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
   log: z.array(RunLogLine),
+  /** Skills that were part of the prompt for this run (skills spec). */
+  skills_applied: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        version: z.number().int(),
+        source: z.string(),
+        tokens: z.number().int(),
+      }),
+    )
+    .optional(),
 });
 export type RunTrace = z.infer<typeof RunTrace>;
 

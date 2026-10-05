@@ -217,9 +217,13 @@ export function RunHistory({
             {onDelete && r.status !== "running" && (
               <span
                 role="button"
+                tabIndex={0}
                 aria-label={t("timeline.deleteRun")}
                 title={t("timeline.deleteRun")}
                 onClick={() => onDelete(r.run_id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") onDelete(r.run_id);
+                }}
                 style={{ display: "inline-flex", padding: 3, borderRadius: 5, color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }}
               >
                 <Icon.Trash size={13} />

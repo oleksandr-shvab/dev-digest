@@ -1,0 +1,41 @@
+{
+  "name": "Conventions: triage seeded candidates (accept/reject/edit), reload, create a skill from the accepted ones",
+  "description": "Deterministic (no model call) walk through the Conventions feature on the seeded demo repo acme/payments-api. The demo repo has no clone, so this flow triages the 4 candidates seed.ts pre-inserts rather than running a real scan: accepts 2, rejects 1, edits 1 inline (its rule text), leaves and comes back (client-side nav) to confirm the rejected one stays gone, then opens Create skill, edits the generated body, saves, and confirms the new skill is on /skills. Assumes a freshly-seeded DB (hermetic runner / e2e-web.yml) where the demo repo's 4 seeded conventions are still untouched and no skill named 'repo-conventions' exists yet.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "root redirects to the demo repo's PR list" },
+    { "cmd": ["find", "text", "Conventions", "click"], "label": "open Conventions from the SKILLS LAB sidebar" },
+    { "cmd": ["wait", "--url", "/conventions"], "label": "conventions route reached" },
+    { "cmd": ["wait", "--text", "4 candidates"], "label": "the 4 seeded candidates are loaded" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Accept: Route handlers return a typed AppError instead of throwing a raw Error."], "label": "accept the first candidate" },
+    { "cmd": ["wait", "--text", "Create skill (1 accepted)"], "label": "the Create-skill button appears after the first accept" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Accept: Repository classes are named <Domain>Repository."], "label": "accept the second candidate" },
+    { "cmd": ["wait", "--text", "Create skill (2 accepted)"], "label": "the counter follows the second accept" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Reject: Integration tests are named *.it.test.ts and skip when Docker is unavailable."], "label": "reject the third candidate" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the reject PATCH settles" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Edit: Cross-module imports go through a module barrel, never a sibling module's internals."], "label": "edit the fourth candidate inline" },
+    { "cmd": ["find", "label", "Edit rule: Cross-module imports go through a module barrel, never a sibling module's internals.", "fill", "Cross-module imports always go through the target module's index.ts barrel."], "label": "type the edited rule" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Save: Cross-module imports go through a module barrel, never a sibling module's internals."], "label": "save the inline edit" },
+    { "cmd": ["wait", "--text", "Cross-module imports always go through the target module's index.ts barrel."], "label": "the card shows the edited rule" },
+    { "cmd": ["wait", "--text", "edited"], "label": "the edited tag appears" },
+
+    { "cmd": ["open", "{BASE}/skills"], "label": "leave Conventions" },
+    { "cmd": ["find", "text", "Conventions", "click"], "label": "come back via the sidebar (client-side nav, not seeded data)" },
+    { "cmd": ["wait", "--url", "/conventions"], "label": "conventions route reached again" },
+    { "cmd": ["wait", "--text", "3 candidates"], "label": "the rejected candidate did not come back" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Create skill (2 accepted)"], "label": "open the create-skill modal" },
+    { "cmd": ["wait", "--text", "Create skill from conventions"], "label": "modal title renders" },
+    { "cmd": ["wait", "--text", "repo-conventions.md"], "label": "the generated draft body loaded into the editor" },
+    { "cmd": ["find", "label", "Skill body", "fill", "## Error handling\n- Route handlers return a typed AppError instead of throwing a raw Error.\n\n## Naming\n- Repository classes are named <Domain>Repository."], "label": "edit the skill body before saving" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Create"], "label": "create the skill" },
+    { "cmd": ["wait", "--url", "/skills/"], "label": "redirected to the new skill's detail page" },
+    { "cmd": ["wait", "--text", "repo-conventions"], "label": "the skill detail shows its name" },
+
+    { "cmd": ["open", "{BASE}/skills"], "label": "reload the Skills list" },
+    { "cmd": ["wait", "--text", "repo-conventions"], "label": "the created skill is listed" }
+  ]
+}
