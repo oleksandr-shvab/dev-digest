@@ -25,6 +25,8 @@ true, but only on explicit request.
 - **2026-09-25** — Keyboard reordering with `@dnd-kit/sortable` under jsdom only works if `HTMLElement.prototype.getBoundingClientRect` is stubbed with distinct row rects (jsdom returns all zeros), and `.focus()` on the drag handle must be wrapped in `act()` or React logs an act warning. `src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/SkillsTab.test.tsx`
 - **2026-09-29** — The vendored kit's `Textarea` (`src/vendor/ui/kit/Textarea.tsx`) takes a fixed prop list with no `...rest` spread, so it cannot carry an `aria-label` — unusable wherever several instances render at once and each needs a unique accessible name (e.g. one edit textarea per card in a list). Render a plain native `<textarea>` with the same inline styles instead of the kit component in that case, as `ConventionCard.tsx` does.
 
+- **2026-10-08** — `useTranslations("ns")` fails when the hook is created, not when `t()` is called: next-intl 3.26 logs `IntlError: MISSING_MESSAGE: Could not resolve \`ns\` in messages` if the provider has no such namespace, even if no key is ever rendered. Tests still pass but get noisy, so a shared component that starts calling a new namespace (e.g. `diff-viewer` → `prReview`) needs that namespace added to every existing test that renders it, as `src/test/smoke.test.tsx` now does. Production is fine: `src/i18n/request.ts` loads every `messages/en/*.json`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

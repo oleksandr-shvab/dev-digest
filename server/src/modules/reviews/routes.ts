@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { RunRequest } from '@devdigest/shared';
+import { RunRequest, SmartDiffResponse } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
@@ -13,6 +13,7 @@ import { ReviewService } from './service.js';
  *   GET    /runs/:id/events                            → SSE stream of RunEvent (replay-first)
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
+ *   GET    /pulls/:id/smart-diff                       → files grouped by role + finding lines (no LLM)
  *   GET    /pulls/:id/intent                           → stored PR intent, or null when none
  *   POST   /pulls/:id/intent                           → derive / re-derive the intent now (one LLM call)
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
@@ -136,6 +137,16 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     const { workspaceId } = await getContext(container, req);
     return service.reviewsForPull(workspaceId, req.params.id);
   });
+
+  // GET never calls a model: grouping is a path classifier, findings come from persisted reviews.
+  app.get(
+    '/pulls/:id/smart-diff',
+    { schema: { params: IdParams, response: { 200: SmartDiffResponse } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return service.smartDiff(workspaceId, req.params.id);
+    },
+  );
 
   // ---- PR intent ------------------------------------------------------------
   // GET never calls the classifier (opening the PR page must not spend tokens).

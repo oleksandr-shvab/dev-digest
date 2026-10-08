@@ -58,7 +58,20 @@
     "largeBody": "Consider splitting it into smaller, focused PRs for easier review:",
     "filesCount": "{count} files",
     "findingLines": "{count} finding-lines",
-    "groupedByRole": "Smart Diff · grouped by role"
+    "groupedByRole": "Smart Diff · grouped by role",
+    "testsLabel": "Tests",
+    "docsLabel": "Docs",
+    "smartOrder": "Smart order",
+    "originalOrder": "Original order",
+    "reviewNotRun": "Review not run yet",
+    "filesWithFindings": "{count} files with findings",
+    "fileHasFindings": "Has review findings",
+    "outsideDiffTitle": "{count} finding(s) outside the diff",
+    "lineLabel": {
+      "CRITICAL": "blocker",
+      "WARNING": "warning",
+      "SUGGESTION": "suggestion"
+    }
   },
   "list": {
     "breadcrumb": "Pull Requests",

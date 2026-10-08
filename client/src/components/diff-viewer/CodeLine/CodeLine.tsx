@@ -1,11 +1,17 @@
 /* CodeLine — one rendered diff line: gutter number, +/- sign, text, plus the
-   hover "+" affordance, any anchored comment threads, and an inline composer. */
+   hover "+" affordance, any anchored comment threads and review findings, and
+   an inline composer. */
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
+import type { FindingRecord } from "@devdigest/shared";
+import { FindingCard } from "@/components/finding-card";
 import { commentTargetFor, type CommentThread, type DiffCommentApi, cs } from "../comments";
+import { LINE_LABEL_KEY } from "../constants";
+import { topSeverity, type DiffFindingApi } from "../findings";
 import { type Line } from "../helpers";
-import { s, lineRowFor, lineSignFor } from "../styles";
+import { s, lineRowFor, lineSignFor, findingStripeFor, lineLabelFor } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
 
@@ -14,12 +20,17 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  findings,
+  findingApi,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  findings: FindingRecord[];
+  findingApi?: DiffFindingApi;
 }) {
+  const t = useTranslations("prReview");
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
 
@@ -34,6 +45,7 @@ export function CodeLine({
   const sign = ln.kind === "add" ? "+" : ln.kind === "del" ? "−" : "";
   const target = commenting?.canComment ? commentTargetFor(ln) : null;
   const showAdd = hover && !!target && !composing;
+  const sev = topSeverity(findings);
 
   return (
     <div
@@ -41,7 +53,7 @@ export function CodeLine({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={lineRowFor(ln.kind)}>
+      <div style={{ ...lineRowFor(ln.kind), ...(sev ? findingStripeFor(sev) : null) }}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button
@@ -62,7 +74,20 @@ export function CodeLine({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
+        {sev && <span style={lineLabelFor(sev)}>{t(LINE_LABEL_KEY[sev])}</span>}
       </div>
+
+      {findingApi?.showFindings === true &&
+        findings.map((f) => (
+          <div key={f.id} style={cs.thread}>
+            <FindingCard
+              f={f}
+              defaultExpanded
+              pending={findingApi.pending}
+              onAction={(a) => findingApi.onAction(f.id, a)}
+            />
+          </div>
+        ))}
 
       {commenting &&
         commenting.showComments &&

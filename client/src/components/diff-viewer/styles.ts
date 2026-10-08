@@ -1,4 +1,6 @@
 import type { CSSProperties } from "react";
+import type { FindingRecord } from "@devdigest/shared";
+import { SEV } from "@devdigest/ui";
 import type { Line } from "./helpers";
 
 /** Co-located styles for the DiffViewer (extracted from inline styles). */
@@ -64,6 +66,14 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  /** Dot in a file header: the file has review findings. */
+  findingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: SEV.CRITICAL.c,
+    flexShrink: 0,
+  } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */
@@ -89,4 +99,14 @@ export function lineSignFor(kind: Line["kind"]): CSSProperties {
     color: kind === "add" ? "var(--code-add-text)" : kind === "del" ? "var(--code-del-text)" : "var(--text-muted)",
     flexShrink: 0,
   };
+}
+
+/** Severity stripe on a line's left edge (inset shadow, so the gutter doesn't shift). */
+export function findingStripeFor(sev: FindingRecord["severity"]): CSSProperties {
+  return { boxShadow: `inset 3px 0 0 ${SEV[sev].c}` };
+}
+
+/** The "blocker" / "warning" / "suggestion" label at the end of a finding's line. */
+export function lineLabelFor(sev: FindingRecord["severity"]): CSSProperties {
+  return { fontSize: 11, fontWeight: 600, color: SEV[sev].c, flexShrink: 0, paddingRight: 12 };
 }

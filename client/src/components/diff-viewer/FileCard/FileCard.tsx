@@ -15,9 +15,11 @@ import {
   type CommentThread,
   type DiffCommentApi,
 } from "../comments";
+import { findingsForLine, isOpenFinding, partitionFindings, type DiffFindingApi } from "../findings";
 import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
+import { FindingsOutsideDiff } from "../FindingsOutsideDiff";
 
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
@@ -30,12 +32,27 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard({
+  file,
+  commenting,
+  findingApi,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  findingApi?: DiffFindingApi;
+}) {
   const t = useTranslations("shell");
+  const tReview = useTranslations("prReview");
   const [open, setOpen] = React.useState(
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+
+  const renderedKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    for (const ln of lines) for (const k of keysForLine(ln)) keys.add(k);
+    return keys;
+  }, [lines]);
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -43,10 +60,19 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
   const { matched, outdated } = React.useMemo(() => {
     if (!comments) return { matched: new Map<string, CommentThread[]>(), outdated: [] };
     const fileThreads = buildThreads(comments.filter((c) => c.path === file.path));
-    const renderedKeys = new Set<string>();
-    for (const ln of lines) for (const k of keysForLine(ln)) renderedKeys.add(k);
     return partitionThreads(fileThreads, renderedKeys);
-  }, [comments, file.path, lines]);
+  }, [comments, file.path, renderedKeys]);
+
+  // Same split for review findings: anchored to a rendered line vs. outside the diff.
+  const allFindings = findingApi?.findings;
+  const fileFindings = React.useMemo(
+    () => (allFindings ?? []).filter((f) => f.file === file.path),
+    [allFindings, file.path],
+  );
+  const { matched: matchedFindings, outsideDiff } = React.useMemo(
+    () => partitionFindings(fileFindings, renderedKeys),
+    [fileFindings, renderedKeys],
+  );
 
   const commentCount = commenting
     ? commenting.comments.filter((c) => c.path === file.path).length
@@ -81,6 +107,9 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
             {commentCount}
           </span>
         )}
+        {fileFindings.some(isOpenFinding) && (
+          <span role="img" aria-label={tReview("smartDiff.fileHasFindings")} style={s.findingDot} />
+        )}
       </div>
       {open && (
         <div style={s.fileBody}>
@@ -94,10 +123,15 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                findings={findingsForLine(ln, matchedFindings)}
+                findingApi={findingApi}
               />
             ))
           )}
           {commenting && commenting.showComments && <OutdatedComments threads={outdated} />}
+          {findingApi?.showFindings === true && (
+            <FindingsOutsideDiff findings={outsideDiff} findingApi={findingApi} />
+          )}
         </div>
       )}
     </div>
