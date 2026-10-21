@@ -10,11 +10,12 @@ of skills of every rule it matches. A skill with zero matching files is simply n
 | `client/src/app/**`, `next.config.*` | + `next-best-practices` | file conventions, RSC boundaries |
 | `client/**/*.test.*`, `client/src/test/**` | `react-testing-library` | test style |
 | `server/src/**/*.ts`, `reviewer-core/src/**/*.ts` (not `vendor/`) | `onion-architecture`, `typescript-expert` | dependency rule, `reviewer-core` purity |
+| `mcp-server/src/**/*.ts`, `mcp-server/scripts/**/*.ts` (not tests) | `typescript-expert` (+ `zod` when importing `zod/v4`, + `security` for `src`) | stdio MCP client of the local API, outside the server's onion rings |
 | `server/src/app.ts`, `server.ts`, `modules/**/routes*`, `platform/{sse,errors,config}.ts`, `server/test/**/*.it.test.ts` | + `fastify-best-practices` | HTTP layer only |
 | `server/src/db/**/*.ts`, `modules/**/repository*` | + `drizzle-orm-patterns` | queries, transactions |
 | `server/src/db/schema*`, `migrations/*.sql` | + `postgresql-table-design` | table/index design |
 | `*/src/vendor/shared/**`; or any source file importing `zod` | `zod` | contracts and parsing |
-| all source under `server/`, `client/`, `reviewer-core/` + `scripts/`, workflows, compose | `security` | full-stack skill: runs on **both** sides |
+| all source under `server/`, `client/`, `reviewer-core/`, `mcp-server/` + `scripts/`, workflows, compose | `security` | full-stack skill: runs on **both** sides |
 | everything code-like except tests | `project-rules` (pseudo-reviewer) | CLAUDE.md rules + module `insights.md` |
 | docs, `.md`, `.claude/**`, lockfiles, generated | none (deterministic checks only) | |
 

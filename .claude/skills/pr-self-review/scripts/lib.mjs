@@ -85,7 +85,7 @@ export const matchAny = (p, globs = []) => globs.some((g) => globToRegExp(g).tes
 
 export const loadRouting = () => readJson(path.join(SKILL_DIR, "routing.json"), {});
 
-const MODULES = ["client", "server", "reviewer-core", "e2e"];
+const MODULES = ["client", "server", "reviewer-core", "e2e", "mcp-server"];
 export const moduleOf = (p) => (MODULES.includes(p.split("/")[0]) ? p.split("/")[0] : "root");
 
 export function resolveBase(explicit) {

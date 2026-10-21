@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Step 6: run the same checks CI runs for every touched module (mirrors
-// .github/workflows/{client,server-unit,reviewer-core}.yml). Integration tests
+// .github/workflows/{client,server-unit,reviewer-core,mcp-server}.yml). Integration tests
 // (`*.it.test.ts`, testcontainers) and e2e are NOT run locally.
 //   --typecheck-only   only the typecheck step of each module (used by --fast)
 //   --skip             record "skipped" and exit (used by --no-ci)
@@ -26,6 +26,8 @@ const STEPS = {
     ["unit-tests", "npm", ["test"]],
   ],
   e2e: [["typecheck", "npm", ["run", "typecheck"]]],
+  // typecheck only until the tests exist; add ["unit-tests", "pnpm", ["test"]] with them
+  "mcp-server": [["typecheck", "pnpm", ["typecheck"]]],
 };
 // server consumes reviewer-core through a tsconfig path alias, and CI runs
 // server-unit on reviewer-core changes too.

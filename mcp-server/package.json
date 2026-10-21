@@ -1,0 +1,20 @@
+{
+  "name": "@devdigest/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DevDigest MCP server (stdio) — exposes reviewers, review runs, findings and conventions to MCP clients by calling the local DevDigest API. No DB, no server imports.",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.3.1",
+    "tsx": "^4.19.2",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}

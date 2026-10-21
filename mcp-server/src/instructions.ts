@@ -1,0 +1,6 @@
+export const SERVER_INSTRUCTIONS = `DevDigest is the user's local AI pull-request review studio. These tools read and run DevDigest reviews through its local API. Search for "devdigest" when the user asks about DevDigest reviewers (agents), review findings on a pull request, a repository's coding conventions, or wants a DevDigest review run.
+- Identify a pull request by repository ("owner/name") and pull_request_number.
+- devdigest_run_agent_on_pull_request is the only tool with side effects: it spends LLM tokens. Call it only when the user explicitly asks for a review. It waits up to about 2 minutes and returns the verdict and top findings. If it returns status "running", the review is still going on the server: do not call it again (that pays for a second review) — call devdigest_get_findings with the returned run_id a minute later.
+- Read-only: devdigest_list_agents, devdigest_get_findings (latest completed run by default; filter by severity, page with cursor), devdigest_get_conventions.
+- devdigest_get_blast_radius is a stub and returns no data yet.
+If a tool reports that the DevDigest API is unreachable, ask the user to start it with ./scripts/dev.sh.`;

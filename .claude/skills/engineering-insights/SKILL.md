@@ -30,6 +30,7 @@ moments trigger this skill: before work starts, and when it ends.
 | `client/**` | `client/insights.md` |
 | `reviewer-core/**`, `docs/agent-prompts/**` | `reviewer-core/insights.md` |
 | `e2e/**` | `e2e/insights.md` |
+| `mcp-server/**` | `mcp-server/insights.md` |
 | `scripts/**`, `docker-compose.yml`, `.github/**`, other root files, or a lesson spanning 2+ modules | `insights.md` (repo root) |
 
 One insight goes into one file. If a lesson genuinely differs by module,

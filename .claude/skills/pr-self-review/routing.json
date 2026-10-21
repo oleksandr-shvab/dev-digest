@@ -56,6 +56,12 @@
       "skills": ["onion-architecture", "typescript-expert"]
     },
     {
+      "id": "mcp-server",
+      "match": ["mcp-server/src/**/*.ts", "mcp-server/scripts/**/*.ts"],
+      "exclude": ["**/*.test.ts"],
+      "skills": ["typescript-expert"]
+    },
+    {
       "id": "backend-http",
       "match": [
         "server/src/app.ts",
@@ -98,12 +104,20 @@
       "skills": ["zod"]
     },
     {
+      "id": "mcp-server-zod",
+      "match": ["mcp-server/src/**/*.ts"],
+      "exclude": ["**/*.test.ts"],
+      "content": "from [\"']zod/v4[\"']",
+      "skills": ["zod"]
+    },
+    {
       "id": "security-code",
       "match": [
         "server/src/**/*.ts",
         "client/src/**/*.ts",
         "client/src/**/*.tsx",
         "reviewer-core/src/**/*.ts",
+        "mcp-server/src/**/*.ts",
         "scripts/**",
         "docker-compose.yml",
         ".github/workflows/**"
@@ -118,6 +132,7 @@
         "client/**",
         "reviewer-core/**",
         "e2e/**",
+        "mcp-server/**",
         "scripts/**",
         ".github/**",
         "docker-compose.yml",

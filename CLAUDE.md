@@ -27,6 +27,7 @@ and web run on the host via `pnpm dev`.
 | `client/`        | `@devdigest/web`            | Next.js 15 web app (the studio)                     |
 | `reviewer-core/` | `@devdigest/reviewer-core`  | Pure review engine: diff → prompt → LLM → findings  |
 | `e2e/`           | `@devdigest/e2e`            | Deterministic browser e2e (agent-browser, no LLM)   |
+| `mcp-server/`    | `@devdigest/mcp-server`     | Local stdio MCP server — DevDigest tools for Claude Code over the local API |
 | `docs/agent-prompts/` | —                       | Reviewer system-prompt content, read at runtime by `reviewer-core` — not agent docs |
 
 Each module folder above has its own `CLAUDE.md` (auto-loaded when you touch
@@ -83,4 +84,5 @@ correct outcome for a routine task. Do not skip the check.
 - [`client/CLAUDE.md`](client/CLAUDE.md) · [`client/docs/`](client/docs/) · [`client/specs/`](client/specs/) · [`client/insights.md`](client/insights.md)
 - [`reviewer-core/CLAUDE.md`](reviewer-core/CLAUDE.md) · [`reviewer-core/docs/`](reviewer-core/docs/) · [`reviewer-core/specs/`](reviewer-core/specs/) · [`reviewer-core/insights.md`](reviewer-core/insights.md)
 - [`e2e/CLAUDE.md`](e2e/CLAUDE.md) · [`e2e/README.md`](e2e/README.md) (already the e2e docs) · [`e2e/insights.md`](e2e/insights.md)
+- [`mcp-server/CLAUDE.md`](mcp-server/CLAUDE.md) · [`mcp-server/README.md`](mcp-server/README.md) (already the mcp-server docs) · [`mcp-server/insights.md`](mcp-server/insights.md)
 - [`insights.md`](insights.md) — cross-cutting and infra learnings that don't belong to one module
