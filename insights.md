@@ -19,6 +19,8 @@ true, but only on explicit request.
 
 ## Codebase Patterns
 
+- **2026-10-21** — The agent files name only `server`, `client`, `reviewer-core` and `e2e` as modules (`planner.md` Step 4 `Module:` list; `implementer.md` description and Step 3 table), so `mcp-server/` has no verification row: an implementer never runs its typecheck unless the plan lists `npm_config_verify_deps_before_run=false pnpm --dir mcp-server run typecheck` under `Verification → Extra checks`, although `.claude/skills/pr-self-review/routing.json` already routes `mcp-server/src/**` to skills. `.claude/agents/implementer.md`
+
 ## Tool & Library Notes
 
 - **2026-09-24** — pnpm 12.4.1 here runs an implicit `pnpm install` before any `pnpm <script>` when it thinks `node_modules` is outdated (`verify-deps-before-run`), which mutated real deps and then failed with `ERR_PNPM_IGNORED_BUILDS` (esbuild/protobufjs/ssh2 build scripts) — so a "typecheck failed" that was really an install failure. Any tool that shells out to `pnpm typecheck`/`pnpm test` outside a deliberate install must set `npm_config_verify_deps_before_run=false`. `.claude/skills/pr-self-review/scripts/ci.mjs`

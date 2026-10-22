@@ -51,6 +51,9 @@ true, but only on explicit request.
   retries are exhausted — a module calling it directly (`modules/conventions/
   service.ts` is the first) needs no extra `parseWithRepair` call of its own;
   the returned `data` is already schema-valid.
+- **2026-10-21** — In `RepoIntelService.getBlastRadius` the constant `MAX_CALLERS_PER_SYMBOL` (20) cuts the whole callers list once (`callers.slice(0, MAX_CALLERS_PER_SYMBOL)`), not each symbol, and an index with status `partial` is answered with `degraded: false`; the only `reason` blast ever returns is `no_data`. A consumer that assumes "20 per symbol" or "partial means degraded" must compensate itself, e.g. read `getIndexState` for a partial badge. `server/src/modules/repo-intel/service.ts:386`
+
+- **2026-10-22** — `pr_files` is filled by `GET /pulls/:id` and by the detail fetch of the `GET /repos/:id/pulls` backfill loop (`modules/pulls/routes.ts`, shared writer `replacePrFiles` in `modules/pulls/pr-files.ts`). The "head sha changed" refetch compares the head before/after the upsert inside that one request only, so a head moved by `POST /repos/:id/poll` (`modules/polling/routes.ts`, no detail fetch) or by a sync whose detail fetch then failed leaves stale `pr_files` that no later list sync detects (stored head already equals GitHub's); only `GET /pulls/:id` repairs it.
 
 ## Tool & Library Notes
 

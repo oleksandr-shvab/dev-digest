@@ -1,9 +1,29 @@
 {
+  "title": "Blast radius",
+  "loading": "Loading the blast radius…",
+  "loadError": "Could not load the blast radius.",
   "stat": {
     "symbols": "symbols",
     "callers": "callers",
     "endpoints": "endpoints",
     "crons": "cron/jobs"
+  },
+  "chips": {
+    "endpoints": "HTTP endpoints",
+    "crons": "Cron jobs"
+  },
+  "badge": {
+    "flag_off": "Repository intelligence is off: callers come from a text search, endpoints are not attributed",
+    "index_failed": "The last index build failed: this map may be incomplete",
+    "index_partial": "The index is incomplete: some callers may be missing",
+    "repo_too_large": "The repository is too large to index fully: this map may be incomplete",
+    "no_data": "Not read from the repository index: any callers come from a text search, endpoints are not attributed",
+    "unknown": "This map may be incomplete"
+  },
+  "resync": {
+    "start": "Resync index",
+    "running": "Resyncing…",
+    "timeout": "The resync did not finish in time. Check the API log."
   },
   "view": {
     "tree": "tree",

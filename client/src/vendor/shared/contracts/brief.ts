@@ -62,10 +62,17 @@ export const DownstreamImpact = z.object({
 });
 export type DownstreamImpact = z.infer<typeof DownstreamImpact>;
 
+// Why a blast radius may be incomplete — the values of repo-intel's DegradedReason (server/src/modules/repo-intel/types.ts).
+export const BlastDegradedReason = z.enum(['flag_off', 'index_failed', 'index_partial', 'repo_too_large', 'no_data']);
+export type BlastDegradedReason = z.infer<typeof BlastDegradedReason>;
+
 export const BlastRadius = z.object({
   changed_symbols: z.array(ChangedSymbol),
   downstream: z.array(DownstreamImpact),
   summary: z.string(),
+  // Set by GET /pulls/:id/blast; absent in a stored PrBrief.
+  degraded: z.boolean().optional(),
+  reason: BlastDegradedReason.optional(),
 });
 export type BlastRadius = z.infer<typeof BlastRadius>;
 

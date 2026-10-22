@@ -7,6 +7,7 @@ import agents from "../../messages/en/agents.json";
 import runs from "../../messages/en/runs.json";
 import conventions from "../../messages/en/conventions.json";
 import brief from "../../messages/en/brief.json";
+import blast from "../../messages/en/blast.json";
 import { ToastProvider } from "@/lib/toast";
 
 /** A QueryClient that never retries or caches across tests. */
@@ -19,7 +20,7 @@ export function makeQueryClient() {
 export function renderWithProviders(ui: React.ReactElement, qc: QueryClient = makeQueryClient()): RenderResult {
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ skills, agents, runs, conventions, brief }}>
+      <NextIntlClientProvider locale="en" messages={{ skills, agents, runs, conventions, brief, blast }}>
         <ToastProvider>{children}</ToastProvider>
       </NextIntlClientProvider>
     </QueryClientProvider>

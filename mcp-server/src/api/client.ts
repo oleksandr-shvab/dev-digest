@@ -1,6 +1,7 @@
 import type {
   Agent,
   ApiErrorBody,
+  BlastRadius,
   ConventionCandidate,
   PrMeta,
   Repo,
@@ -62,6 +63,10 @@ export class DevDigestApi {
 
   listReviews(pullRequestId: string): Promise<ReviewRecord[]> {
     return this.request<ReviewRecord[]>('GET', `/pulls/${encodeURIComponent(pullRequestId)}/reviews`);
+  }
+
+  getBlastRadius(pullRequestId: string): Promise<BlastRadius> {
+    return this.request<BlastRadius>('GET', `/pulls/${encodeURIComponent(pullRequestId)}/blast`);
   }
 
   listConventions(repoId: string): Promise<ConventionCandidate[]> {

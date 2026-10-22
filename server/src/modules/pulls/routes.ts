@@ -9,6 +9,7 @@ import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
 import { pickLatestBatchByPr, aggregateFindingCounts } from './latest-batch.js';
+import { replacePrFiles, selectDetailFetchCandidates } from './pr-files.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -39,12 +40,27 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       app.log.warn({ err }, 'GitHub client unavailable (no token / offline); serving persisted PRs');
     }
 
+    // PRs whose head sha moved during this sync: their stored pr_files are
+    // stale and need a refetch (see the backfill below).
+    const headChangedNumbers = new Set<number>();
+
     // Local-first: sync from GitHub when a token is configured, but never
     // fail the read — already-imported/seeded PRs stay viewable offline.
     if (gh) {
       try {
         const pulls = await gh.listPullRequests({ owner: repo.owner, name: repo.name });
+        // Head sha before the upsert overwrites it, to detect moved heads.
+        const prevHeads = new Map(
+          (
+            await container.db
+              .select({ number: t.pullRequests.number, headSha: t.pullRequests.headSha })
+              .from(t.pullRequests)
+              .where(eq(t.pullRequests.repoId, repo.id))
+          ).map((r) => [r.number, r.headSha]),
+        );
         for (const pr of pulls) {
+          const prevHead = prevHeads.get(pr.number);
+          if (prevHead !== undefined && prevHead !== pr.head_sha) headChangedNumbers.add(pr.number);
           await container.db
             .insert(t.pullRequests)
             .values({
@@ -85,24 +101,42 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Diff stats aren't on GitHub's PR-list payload, so freshly-imported PRs
     // land with zeroed size/diff. Backfill them once from the detail endpoint
-    // so the list shows real S/M/L + ± counts. Capped per request (each backfill
-    // is a detail fetch) — the periodic refetch chips away at any remainder.
+    // so the list shows real S/M/L + ± counts. The same detail fetch carries the
+    // changed files, so they are stored in pr_files too (the blast radius route
+    // reads them from there without calling GitHub). A PR is fetched when its
+    // stats are zero, when it has files_count > 0 but no pr_files rows, or when
+    // its head sha changed in this sync. Capped per request (each backfill is a
+    // detail fetch) — the periodic refetch chips away at any remainder.
     const BACKFILL_LIMIT = 10;
     if (gh) {
-      const needStats = rows
-        .filter((r) => r.additions === 0 && r.deletions === 0 && r.filesCount === 0)
-        .slice(0, BACKFILL_LIMIT);
-      for (const r of needStats) {
+      const listedIds = rows.map((r) => r.id);
+      const prIdsWithFiles = new Set<string>();
+      if (listedIds.length > 0) {
+        const withFiles = await container.db
+          .selectDistinct({ prId: t.prFiles.prId })
+          .from(t.prFiles)
+          .where(inArray(t.prFiles.prId, listedIds));
+        for (const f of withFiles) prIdsWithFiles.add(f.prId);
+      }
+      const needDetail = selectDetailFetchCandidates(
+        rows,
+        { prIdsWithFiles, headChangedNumbers },
+        BACKFILL_LIMIT,
+      );
+      for (const r of needDetail) {
         try {
           const detail = await gh.getPullRequest({ owner: repo.owner, name: repo.name }, r.number);
-          await container.db
-            .update(t.pullRequests)
-            .set({
-              additions: detail.additions,
-              deletions: detail.deletions,
-              filesCount: detail.files_count,
-            })
-            .where(eq(t.pullRequests.id, r.id));
+          await container.db.transaction(async (tx) => {
+            await tx
+              .update(t.pullRequests)
+              .set({
+                additions: detail.additions,
+                deletions: detail.deletions,
+                filesCount: detail.files_count,
+              })
+              .where(eq(t.pullRequests.id, r.id));
+            await replacePrFiles(tx, r.id, detail.files);
+          });
           r.additions = detail.additions;
           r.deletions = detail.deletions;
           r.filesCount = detail.files_count;
@@ -243,18 +277,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       // that empty state and silently return an empty diff/file list to the
       // caller — real data loss, not just a stale read.
       await container.db.transaction(async (tx) => {
-        await tx.delete(t.prFiles).where(eq(t.prFiles.prId, pr.id));
-        if (detail.files.length > 0) {
-          await tx.insert(t.prFiles).values(
-            detail.files.map((f) => ({
-              prId: pr.id,
-              path: f.path,
-              additions: f.additions,
-              deletions: f.deletions,
-              patch: f.patch ?? null,
-            })),
-          );
-        }
+        await replacePrFiles(tx, pr.id, detail.files);
         await tx.delete(t.prCommits).where(eq(t.prCommits.prId, pr.id));
         if (detail.commits.length > 0) {
           await tx.insert(t.prCommits).values(

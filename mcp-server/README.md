@@ -3,7 +3,7 @@
 A **local, stdio-only [MCP](https://modelcontextprotocol.io) server**. Claude Code
 starts it from the repo's [`.mcp.json`](../.mcp.json) and gets five `devdigest_*`
 tools: list the configured reviewers, run one on a pull request, read findings,
-read a repository's conventions, and a blast-radius **stub**. Every tool is a
+read a repository's conventions, and read a pull request's blast radius. Every tool is a
 thin wrapper over the already-running DevDigest API on `http://localhost:3001`;
 the server never touches Postgres and never imports anything from `server/` at
 runtime.
@@ -78,7 +78,7 @@ tool's `outputSchema` (skipped for `isError` results).
 | `devdigest_get_findings` | `GET /repos` → `GET /repos/:id/pulls` (first time per PR) → `GET /pulls/:id/runs` → `GET /pulls/:id/reviews` | the API's GitHub PR sync inside `GET /repos/:id/pulls` |
 | `devdigest_get_conventions` | `GET /repos` → `GET /repos/:id/conventions` | none |
 | `devdigest_run_agent_on_pull_request` | `GET /repos` → `GET /repos/:id/pulls` (cached) → `GET /agents` → `GET /pulls/:id/runs` (double-run guard) → `POST /pulls/:id/review` (only when that agent has no running run) → `GET /pulls/:id/runs` every 4 s → `GET /pulls/:id/reviews` (when done) | creates run rows and spends LLM tokens; never cancels |
-| `devdigest_get_blast_radius` | none | none |
+| `devdigest_get_blast_radius` | `GET /repos` → `GET /repos/:id/pulls` (first time per PR) → `GET /pulls/:id/blast` | the API's GitHub PR sync inside `GET /repos/:id/pulls` |
 
 **Identifying a repository and a pull request.** Tools take `repository` as
 `"owner/name"` (matched case-insensitively against `Repo.full_name` from
@@ -97,7 +97,7 @@ on explicitly in [`.claude/settings.json`](../.claude/settings.json)
 - At session start only the **five tool names** and the server `instructions`
   text are loaded. The full schemas and descriptions are fetched on demand, when
   the model searches for them.
-- [`SERVER_INSTRUCTIONS`](src/instructions.ts) is 1,138 characters (Claude Code
+- [`SERVER_INSTRUCTIONS`](src/instructions.ts) is 1,231 characters (Claude Code
   truncates `instructions` and each tool description at 2,048). It says what the
   tools are for, to search for "devdigest", and that the run tool is the only one
   with side effects. Tool descriptions are 170–483 characters.
@@ -299,18 +299,64 @@ Call: `{ "repository": "acme/payments-api", "status": "pending", "limit": 1 }`
 }
 ```
 
-### 5. `devdigest_get_blast_radius` — stub
+### 5. `devdigest_get_blast_radius`
 
-**Purpose.** A placeholder for a future blast-radius analysis. It makes **no API
-call and returns no data**. Read-only annotations, no `outputSchema`, and the title
-and description say "not implemented" / "STUB". It always answers with
-`isError: true`:
+**Purpose.** Read what else a pull request's changes can affect: the changed
+symbols, who calls them (`file:line`), and the HTTP endpoints and crons that depend
+on them. Read-only, `openWorldHint: false`. It calls `GET /pulls/:id/blast`, which
+reads the map the repository index already holds: no model call, no GitHub call of
+its own and no re-parse. It is the same map as the Blast radius block on the PR page's
+Overview tab. Like the findings tool it resolves the pull request first, so the API's
+GitHub PR sync can run on the first lookup per process.
 
-> devdigest_get_blast_radius is not implemented yet — this tool is a stub and has no
-> data. Tell the user that blast-radius analysis is not available through
-> DevDigest's MCP server yet. Do not estimate it and do not retry.
+**Inputs.** `repository`; `pull_request_number`. No other argument, so no cursor.
+
+**Output.** `{ repository, pull_request_number, changed_symbols, downstream, summary,
+degraded, reason, message }`. `changed_symbols` is `{ name, file, kind }[]`.
+`downstream` has one entry per changed symbol that has callers: `{ symbol, callers:
+{ name, file, line }[], endpoints_affected, crons_affected }`, highest rank first.
+`summary` is the API's one-line count (`symbols: …, callers: …, endpoints: …,
+crons: …`). `degraded` and `reason` (`flag_off | index_failed | index_partial |
+repo_too_large | no_data`) are copied from the API only when it sends them. Names,
+paths, endpoints and crons are sanitised and capped at 200 chars. No ids.
+
+Behaviour worth knowing:
+
+- `message` is `null` for a complete map with callers. Otherwise it is one plain
+  sentence: a degraded map gets a text per `reason` (for most of them it says to refresh
+  the repository from its Pull requests page in DevDigest, then call again); a map
+  with no changed symbols says the changed files declare no indexed symbols; a map
+  with symbols but no callers says that nothing calls them.
+- The result stays within `MAX_STRUCTURED_CHARS`. When it would not, downstream groups
+  are dropped from the end (lowest rank) and then `changed_symbols` is cut, and `message`
+  ends with "Response size limit reached: showing a of b changed symbols and c of d
+  downstream groups (highest rank first).". The tool has no cursor, so the rest is not
+  reachable.
+- An unknown repository or pull request is an `isError` result that lists known ones with
+  an example; an unreachable API or a timeout is explained like in the other tools.
 
 Call: `{ "repository": "acme/payments-api", "pull_request_number": 482 }`
+
+```json
+{
+  "repository": "acme/payments-api",
+  "pull_request_number": 482,
+  "changed_symbols": [
+    { "name": "rateLimit", "file": "src/middleware/ratelimit.ts", "kind": "function" }
+  ],
+  "downstream": [
+    {
+      "symbol": "rateLimit",
+      "callers": [{ "name": "publicRouter", "file": "src/api/public/webhooks.ts", "line": 23 }],
+      "endpoints_affected": ["POST /webhooks"],
+      "crons_affected": []
+    }
+  ],
+  "summary": "symbols: 1, callers: 1, endpoints: 1, crons: 0",
+  "degraded": false,
+  "message": null
+}
+```
 
 ## How the run tool waits
 
@@ -616,8 +662,7 @@ about 200 ms (details in [`insights.md`](insights.md)).
   not from a run; the ~110 s margin decision is **OPEN**.
 - Token cost of the tool list and of responses: not measured.
 
-**Not implemented by design:** Streamable HTTP, authentication, a real blast radius,
-cancelling or deleting runs, accepting or dismissing findings, extracting
+**Not implemented by design:** Streamable HTTP, authentication, cancelling or deleting runs, accepting or dismissing findings, extracting
 conventions, listing pull requests, running every agent at once, progress
 notifications, MCP resources and prompts.
 

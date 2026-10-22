@@ -2,8 +2,8 @@
 
 Local stdio MCP server for DevDigest. Claude Code starts it from the repo's
 `.mcp.json`; it exposes five `devdigest_*` tools (list reviewers, run a
-reviewer on a pull request, read findings, read conventions, a blast-radius
-stub) and fulfils each one by calling the already-running DevDigest API on
+reviewer on a pull request, read findings, read conventions, a pull request's
+blast radius) and fulfils each one by calling the already-running DevDigest API on
 `http://localhost:3001`. It never touches the database or `server/` internals.
 See root [`CLAUDE.md`](../CLAUDE.md) for the whole-repo map.
 

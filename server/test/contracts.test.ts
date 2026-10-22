@@ -4,6 +4,7 @@ import {
   Finding,
   Intent,
   BlastRadius,
+  BlastDegradedReason,
   Risks,
   PrHistory,
   SmartDiff,
@@ -70,20 +71,30 @@ describe('AI contracts parse fixtures', () => {
     expect(() =>
       Intent.parse({ intent: 'x', in_scope: ['a'], out_of_scope: ['b'] }),
     ).not.toThrow();
+    const blast = {
+      changed_symbols: [{ name: 'rateLimit', file: 'a.ts', kind: 'function' }],
+      downstream: [
+        {
+          symbol: 'rateLimit',
+          callers: [{ name: 'publicRouter', file: 'b.ts', line: 23 }],
+          endpoints_affected: ['GET /x'],
+          crons_affected: ['c'],
+        },
+      ],
+      summary: 's',
+    };
+    expect(() => BlastRadius.parse(blast)).not.toThrow();
     expect(() =>
-      BlastRadius.parse({
-        changed_symbols: [{ name: 'rateLimit', file: 'a.ts', kind: 'function' }],
-        downstream: [
-          {
-            symbol: 'rateLimit',
-            callers: [{ name: 'publicRouter', file: 'b.ts', line: 23 }],
-            endpoints_affected: ['GET /x'],
-            crons_affected: ['c'],
-          },
-        ],
-        summary: 's',
-      }),
+      BlastRadius.parse({ ...blast, degraded: true, reason: 'index_partial' }),
     ).not.toThrow();
+    expect(() => BlastRadius.parse({ ...blast, reason: 'stale' })).toThrow();
+    expect([...BlastDegradedReason.options].sort()).toEqual([
+      'flag_off',
+      'index_failed',
+      'index_partial',
+      'no_data',
+      'repo_too_large',
+    ]);
     expect(() =>
       Risks.parse({
         risks: [{ kind: 'security', title: 't', explanation: 'e', severity: 'high', file_refs: [] }],
