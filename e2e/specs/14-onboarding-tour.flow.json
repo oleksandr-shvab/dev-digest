@@ -1,0 +1,38 @@
+{
+  "name": "Onboarding Tour page: the seeded tour of the demo repo, its notices and its five sections",
+  "description": "Deterministic (no model call) walk through the read-only Onboarding Tour page on the seeded demo repo acme/payments-api. Opens it from the sidebar; the header shows 'Onboarding for', the stored index size ('12,450 files', formatted en-US) and 'last refreshed'; the seeded 'partial' index row and the indexed sha that differs from the tour's commit make the 'Built from a partial index' and 'Repo changed since this tour' notices appear, next to the 'Regenerate' and 'Share link' buttons. The five section titles and the 'On this page' nav are present; each section's seeded content is present (collapsed bodies use 'hidden', so their text stays in the DOM): the summary chip, the critical path with its note and its 'Open … on GitHub' link, the run command with 'Copy command 4', the reading-path reason and the first-task title. The flow never clicks Regenerate, Generate tour, Share link or any Copy button, and the GitHub link is only focused, not followed. Absence, order, focus and collapse checks, and the clipboard, live in the component tests (agent-browser has no 'is absent' wait). Finally opens /onboarding and waits for 'Add a repository' (the add-repo screen is unchanged; 06-onboarding.flow.json covers it in depth). Assumes a freshly-seeded DB (server/src/db/seed-onboarding.ts); reads only, so it can run in any order.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "root redirects to the demo repo's PR list" },
+    { "cmd": ["find", "text", "Onboarding Tour", "click"], "label": "open Onboarding Tour from the WORKSPACE sidebar group" },
+    { "cmd": ["wait", "--url", "/tour"], "label": "tour route reached" },
+
+    { "cmd": ["wait", "--text", "Onboarding for"], "label": "header title renders" },
+    { "cmd": ["wait", "--text", "Generated from index of 12,450 files"], "label": "header shows the seeded index file count" },
+    { "cmd": ["wait", "--text", "last refreshed"], "label": "header shows when the index was refreshed" },
+    { "cmd": ["wait", "--text", "Built from a partial index"], "label": "partial-index notice shows" },
+    { "cmd": ["wait", "--text", "Repo changed since this tour"], "label": "stale-tour notice shows" },
+    { "cmd": ["wait", "--text", "Regenerate"], "label": "Regenerate button is offered" },
+    { "cmd": ["wait", "--text", "Share link"], "label": "Share link button is offered" },
+
+    { "cmd": ["wait", "--text", "Architecture overview"], "label": "section: Architecture overview" },
+    { "cmd": ["wait", "--text", "Critical paths"], "label": "section: Critical paths" },
+    { "cmd": ["wait", "--text", "How to run locally"], "label": "section: How to run locally" },
+    { "cmd": ["wait", "--text", "Guided reading path"], "label": "section: Guided reading path" },
+    { "cmd": ["wait", "--text", "First tasks"], "label": "section: First tasks" },
+    { "cmd": ["wait", "--text", "On this page"], "label": "the section nav renders" },
+
+    { "cmd": ["wait", "--text", "src/server.ts"], "label": "architecture summary chip for src/server.ts" },
+    { "cmd": ["wait", "--text", "src/middleware/auth.ts"], "label": "critical path src/middleware/auth.ts is listed" },
+    { "cmd": ["wait", "--text", "Token validation, used by 14 routes"], "label": "critical path carries its note" },
+    { "cmd": ["find", "role", "link", "focus", "--name", "Open src/middleware/auth.ts on GitHub"], "label": "the critical path has an accessible GitHub link (focus only, not followed)" },
+    { "cmd": ["wait", "--text", "pnpm dev # http://localhost:3000"], "label": "the fourth run command is listed" },
+    { "cmd": ["find", "role", "button", "focus", "--name", "Copy command 4"], "label": "the fourth run command has a copy button (focus only, not clicked)" },
+    { "cmd": ["wait", "--text", "See the whole request lifecycle in one file"], "label": "reading-path reason renders" },
+    { "cmd": ["wait", "--text", "Add a request-id header to every response"], "label": "first task title renders" },
+
+    { "cmd": ["open", "{BASE}/onboarding"], "label": "load the add-repository screen" },
+    { "cmd": ["wait", "--url", "/onboarding"], "label": "onboarding route reached" },
+    { "cmd": ["wait", "--text", "Add a repository"], "label": "the add-repository heading renders" }
+  ]
+}

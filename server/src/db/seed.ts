@@ -9,6 +9,13 @@ import {
   TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { TEST_QUALITY_SKILLS } from './seed-skills.js';
+import {
+  SEED_INDEXED_SHA,
+  SEED_INDEX_FILE_COUNT,
+  SEED_ONBOARDING_TOUR,
+  SEED_TOUR_COMMIT_SHA,
+} from './seed-onboarding.js';
+import { INDEXER_VERSION } from '../modules/repo-intel/constants.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -471,6 +478,33 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       },
     ]);
   }
+
+  // ---- demo onboarding tour (SPEC-02). The index sha has moved on from the tour's
+  // commit on purpose, so the page shows "Repo changed since this tour"; the
+  // `partial` status shows "Built from a partial index". e2e only reads these.
+  // `onConflictDoNothing` keeps re-seeding idempotent and leaves real data alone.
+  await db
+    .insert(t.repoIndexState)
+    .values({
+      repoId,
+      lastIndexedSha: SEED_INDEXED_SHA,
+      indexerVersion: INDEXER_VERSION,
+      status: 'partial',
+      filesIndexed: SEED_INDEX_FILE_COUNT,
+      filesSkipped: 37,
+      stats: {},
+    })
+    .onConflictDoNothing();
+  await db
+    .insert(t.onboarding)
+    .values({
+      repoId,
+      json: SEED_ONBOARDING_TOUR,
+      commitSha: SEED_TOUR_COMMIT_SHA,
+      indexFileCount: SEED_INDEX_FILE_COUNT,
+      indexStatus: 'partial',
+    })
+    .onConflictDoNothing();
 
   return { workspaceId, userId };
 }

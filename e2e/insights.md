@@ -20,6 +20,8 @@ true, but only on explicit request.
 
 ## Tool & Library Notes
 
+- **2026-11-03** — agent-browser `find` takes an action (`click`, `focus`, `fill`), and an icon-only control has no visible text for `wait --text`. To prove such a link or button exists without leaving the page or triggering it, use `find role link|button focus --name "<aria-label>"`; clicking an external `target=_blank` link would hit the network. `e2e/specs/14-onboarding-tour.flow.json`
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

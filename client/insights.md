@@ -19,6 +19,7 @@ true, but only on explicit request.
 ## Codebase Patterns
 
 - **2026-09-25** — `apiFetch` sets `content-type: application/json` whenever a body is present, which would break multipart uploads; it now skips that header for `FormData`, so file uploads go through `api.postForm`. `src/lib/api.ts`
+- **2026-11-03** — `ToastProvider` always renders its own `role="status"` region (`src/lib/toast.tsx:90`), so in any test using `renderWithProviders` a page's own live region makes `getByRole("status")` throw "Found multiple elements". Give the page's region an `aria-label` and query it by name, as `getByRole("status", { name: "Tour status" })` does in `src/app/repos/[repoId]/tour/_components/TourView/TourView.test.tsx`.
 
 ## Tool & Library Notes
 
@@ -26,6 +27,7 @@ true, but only on explicit request.
 - **2026-09-29** — The vendored kit's `Textarea` (`src/vendor/ui/kit/Textarea.tsx`) takes a fixed prop list with no `...rest` spread, so it cannot carry an `aria-label` — unusable wherever several instances render at once and each needs a unique accessible name (e.g. one edit textarea per card in a list). Render a plain native `<textarea>` with the same inline styles instead of the kit component in that case, as `ConventionCard.tsx` does.
 
 - **2026-10-08** — `useTranslations("ns")` fails when the hook is created, not when `t()` is called: next-intl 3.26 logs `IntlError: MISSING_MESSAGE: Could not resolve \`ns\` in messages` if the provider has no such namespace, even if no key is ever rendered. Tests still pass but get noisy, so a shared component that starts calling a new namespace (e.g. `diff-viewer` → `prReview`) needs that namespace added to every existing test that renders it, as `src/test/smoke.test.tsx` now does. Production is fine: `src/i18n/request.ts` loads every `messages/en/*.json`.
+- **2026-11-03** — The vitest CLI file filter is a plain substring, not a glob, and keeps backslashes literally, so `pnpm --dir client exec vitest run "src/app/repos/\[repoId\]/tour"` prints `No test files found, exiting with code 1`. Filter by a bracket-free fragment (`vitest run "tour/_components"`), and don't write a plan's `Done when` with an escaped `[repoId]` path.
 
 ## Recurring Errors & Fixes
 

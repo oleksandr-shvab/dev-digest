@@ -1,0 +1,58 @@
+{
+  "page": {
+    "crumbTour": "Onboarding Tour",
+    "repoFallback": "this repo",
+    "loadError": "Couldn’t load the onboarding tour of this repo.",
+    "generateError": "Couldn’t start the tour generation.",
+    "statusLabel": "Tour status"
+  },
+  "header": {
+    "title": "Onboarding for <accent>{name}</accent>",
+    "subtitle": "Generated from index of {count} files · last refreshed {age}",
+    "generate": "Generate tour",
+    "regenerate": "Regenerate",
+    "share": "Share link",
+    "generating": "Generating tour…",
+    "indexFirst": "Index this repository first",
+    "partialIndex": "Built from a partial index",
+    "stale": "Repo changed since this tour",
+    "failed": "Generation failed: {reason}",
+    "tryAgain": "Try again"
+  },
+  "age": {
+    "justNow": "just now",
+    "minutes": "{n}m ago",
+    "hours": "{n}h ago",
+    "days": "{n}d ago"
+  },
+  "empty": {
+    "title": "No tour yet",
+    "description": "A tour of this repo in five parts: architecture overview, critical paths, how to run locally, a guided reading path and first tasks."
+  },
+  "copy": {
+    "copied": "Copied",
+    "linkCopied": "Link copied",
+    "command": "Copy command {n}",
+    "manual": "Copy this text manually",
+    "dismiss": "Close"
+  },
+  "nav": {
+    "label": "On this page"
+  },
+  "sections": {
+    "architecture": "Architecture overview",
+    "criticalPaths": "Critical paths",
+    "runLocally": "How to run locally",
+    "readingPath": "Guided reading path",
+    "firstTasks": "First tasks",
+    "toggle": "Toggle {title}"
+  },
+  "files": {
+    "byFileRank": "by file rank",
+    "open": "Open",
+    "openOnGithub": "Open {path} on GitHub"
+  },
+  "tasks": {
+    "none": "No starter tasks could be grounded in this repo — try Regenerate"
+  }
+}

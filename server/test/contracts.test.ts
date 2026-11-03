@@ -10,7 +10,8 @@ import {
   SmartDiff,
   SmartDiffRole,
   Conformance,
-  Onboarding,
+  OnboardingTourContent,
+  OnboardingTourState,
   EvalRun,
   MemoryItem,
   RunTrace,
@@ -24,6 +25,7 @@ import {
   ProjectContextList,
   MAX_ATTACHED_DOCS,
 } from '@devdigest/shared';
+import { SEED_ONBOARDING_TOUR } from '../src/db/seed-onboarding.js';
 
 /**
  * Contract tests — parse/round-trip the fixtures from data.jsx/data2.jsx
@@ -145,7 +147,7 @@ describe('AI contracts parse fixtures', () => {
     expect(() => SmartDiffRole.parse('docs')).not.toThrow();
   });
 
-  it('Conformance / Onboarding / EvalRun / MemoryItem', () => {
+  it('Conformance / OnboardingTourState / EvalRun / MemoryItem', () => {
     expect(() =>
       Conformance.parse({
         spec_id: 's1',
@@ -154,11 +156,61 @@ describe('AI contracts parse fixtures', () => {
         completeness_pct: 80,
       }),
     ).not.toThrow();
+    const index = {
+      ready: true,
+      reason: null,
+      status: 'partial',
+      indexed_sha: 'beef0000beef0000beef0000beef0000beef0000',
+      file_count: 12450,
+    };
     expect(() =>
-      Onboarding.parse({
-        sections: [{ kind: 'architecture', title: 'T', body: 'b', links: [] }],
+      OnboardingTourState.parse({
+        repo_id: 'r1',
+        tour: null,
+        generating: false,
+        last_error: null,
+        index,
       }),
     ).not.toThrow();
+    expect(() =>
+      OnboardingTourState.parse({
+        repo_id: 'r1',
+        tour: {
+          repo_id: 'r1',
+          generated_at: '2026-11-03T10:00:00.000Z',
+          commit_sha: 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00',
+          index_file_count: 12450,
+          index_status: 'partial',
+          architecture: {
+            summary_md: 'Entry is `src/server.ts`.',
+            diagram: null,
+            links: [{ label: 'Server', path: 'src/server.ts' }],
+          },
+          critical_paths: {
+            source: 'file_rank',
+            items: [
+              { path: 'src/server.ts', note: null },
+              { path: 'src/middleware/auth.ts', note: 'Token validation' },
+            ],
+          },
+          run_steps: [{ command: 'pnpm install' }],
+          reading_path: [{ path: 'src/server.ts', reason: null }],
+          first_tasks: [{ title: 'Add a header', description: 'One line.', paths: ['src/server.ts'] }],
+        },
+        generating: true,
+        last_error: 'timed out',
+        index,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      OnboardingTourState.parse({
+        repo_id: 'r1',
+        tour: null,
+        generating: false,
+        last_error: null,
+        index: { ...index, status: 'unknown' },
+      }),
+    ).toThrow();
     expect(() =>
       EvalRun.parse({
         recall: 0.82,
@@ -180,6 +232,10 @@ describe('AI contracts parse fixtures', () => {
         sources: [{ pr: 401, context: 'ctx' }],
       }),
     ).not.toThrow();
+  });
+
+  it('the seeded onboarding tour matches OnboardingTourContent', () => {
+    expect(() => OnboardingTourContent.parse(SEED_ONBOARDING_TOUR)).not.toThrow();
   });
 
   it('RunTrace (data2.jsx TRACE single-document)', () => {

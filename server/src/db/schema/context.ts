@@ -123,4 +123,9 @@ export const onboarding = pgTable('onboarding', {
     .references(() => repos.id, { onDelete: 'cascade' }),
   json: jsonb('json').notNull(),
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+  // Tour metadata. Nullable so a legacy starter row cannot fail the migration;
+  // a row with a null `commit_sha` reads as "no tour".
+  commitSha: text('commit_sha'),
+  indexFileCount: integer('index_file_count'),
+  indexStatus: text('index_status', { enum: ['full', 'partial', 'degraded', 'failed'] }),
 });
