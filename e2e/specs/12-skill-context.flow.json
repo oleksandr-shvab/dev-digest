@@ -1,0 +1,23 @@
+{
+  "name": "Skill Context tab: attach a doc, see how it serializes, detach",
+  "description": "Deterministic (no model call) walk through the Context tab of the seeded skill 'uncovered-branches' (linked to Test Quality Reviewer) with the active repo acme/payments-api. Ticks specs/public-api.md (saves at once; badge reads '1 attached'); the 'Serializes as' box shows the '## Project context' heading and the '- specs/public-api.md' path line, never doc text (that no doc text appears is asserted by the component test: agent-browser has no 'is absent' wait). Unticks it at the end so the flow can run again. Attachments do not create skill versions. Assumes a freshly-seeded DB and the fixture mirror (hermetic runner / e2e-web.yml); flow 08 creates other skills only, so the order of flows does not matter.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "open the Skills page" },
+    { "cmd": ["find", "text", "uncovered-branches", "click"], "label": "open the seeded skill uncovered-branches" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Context"], "label": "switch to the skill's Context tab" },
+    { "cmd": ["wait", "--text", "Project context to use"], "label": "context tab renders" },
+    { "cmd": ["wait", "--text", "Any agent using this skill inherits these documents."], "label": "helper text explains inheritance" },
+    { "cmd": ["wait", "--text", "0 attached"], "label": "nothing is attached yet" },
+    { "cmd": ["wait", "--text", "Serializes as"], "label": "the serialization box is shown" },
+
+    { "cmd": ["find", "role", "checkbox", "click", "--name", "Attach specs/public-api.md"], "label": "attach specs/public-api.md" },
+    { "cmd": ["wait", "--text", "1 attached"], "label": "badge follows the tick (saved immediately)" },
+    { "cmd": ["wait", "--text", "## Project context"], "label": "serialization shows the heading" },
+    { "cmd": ["wait", "--text", "- specs/public-api.md"], "label": "serialization lists the attached path" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the immediate PUT settles" },
+
+    { "cmd": ["find", "role", "checkbox", "click", "--name", "Attach specs/public-api.md"], "label": "detach specs/public-api.md" },
+    { "cmd": ["wait", "--text", "0 attached"], "label": "back to the seeded state so the flow can run again" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the last PUT settles" }
+  ]
+}

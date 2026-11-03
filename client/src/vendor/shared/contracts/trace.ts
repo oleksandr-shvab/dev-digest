@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProjectContextTrace } from './project-context.js';
 
 /**
  * Run trace. The ENTIRE trace of one run is persisted as a SINGLE
@@ -85,6 +86,8 @@ export const RunTrace = z.object({
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
+  /** Project-context docs of this run: commit read and per-doc status. Absent on older traces. */
+  project_context: ProjectContextTrace.optional(),
   log: z.array(RunLogLine),
   /** Skills that were part of the prompt for this run (skills spec). */
   skills_applied: z

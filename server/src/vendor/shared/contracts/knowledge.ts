@@ -144,6 +144,8 @@ export const Skill = z.object({
   updated_at: z.string().nullish(),
   /** Present on list/detail reads (30-day window). */
   stats: SkillStatsSummary.optional(),
+  /** Repo-relative Markdown docs attached as project context, in order. */
+  context_paths: z.array(z.string()).default([]),
 });
 export type Skill = z.infer<typeof Skill>;
 
@@ -336,6 +338,8 @@ export const Agent = z.object({
   repo_intel: z.boolean().default(true),
   /** Enabled links whose skill is enabled — agent card badge. */
   skill_count: z.number().int().optional(),
+  /** Repo-relative Markdown docs attached as project context, in order. */
+  context_paths: z.array(z.string()).default([]),
 });
 export type Agent = z.infer<typeof Agent>;
 

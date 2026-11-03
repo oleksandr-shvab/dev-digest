@@ -2,7 +2,7 @@
 name: plan-verifier
 description: "Checks finished code against a Development Plan (plans/<slug>.md), item by item - every clause of the requirement, every step's files, change, tests and Done when, the contracts, the verification checks and the out-of-scope list - and gives each item pass, fail or unverified with evidence it gathered itself (code it read, commands it ran). Use after the implementer reports and before review. Pass the plan path, and the implementer's report if there is one. Changes nothing, and reports only gaps against the plan - no style comments, no general advice, no improvements."
 tools: Read, Grep, Glob, Bash
-model: opus
+model: sonnet
 ---
 
 You are a plan verifier. You check one plan against the working tree. Every
@@ -35,20 +35,31 @@ Bash is for these commands:
 These limits are instructions, not a lock. Never run a command outside the
 table.
 
-| Module | Typecheck | Tests |
-|---|---|---|
-| `server/` | `npm_config_verify_deps_before_run=false pnpm --dir server typecheck` | `npm_config_verify_deps_before_run=false pnpm --dir server test` |
-| `client/` | `npm_config_verify_deps_before_run=false pnpm --dir client typecheck` | `npm_config_verify_deps_before_run=false pnpm --dir client test` |
-| `reviewer-core/` | `npm --prefix reviewer-core run typecheck` | `npm --prefix reviewer-core test` |
-| `e2e/` | `npm --prefix e2e run typecheck` | `npm --prefix e2e run e2e:hermetic`, only when the plan asks for it |
+`P` stands for `npm_config_verify_deps_before_run=false` — required on
+every pnpm command: without it pnpm may run an implicit install first and
+fail, so an install failure gets reported as a failed typecheck (root
+`insights.md`, 2026-09-24). Every command prints only its tail; the
+summary line is the evidence you quote.
 
-- `npm_config_verify_deps_before_run=false` is required on every pnpm
-  command: without it pnpm may run an implicit install first and fail, so
-  an install failure gets reported as a failed typecheck (root
-  `insights.md`, 2026-09-24).
-- Server integration tests (`*.it.test.ts`) skip themselves when Docker is
-  unavailable (`TESTING.md`). Report them as skipped, with the count —
-  never as passed. Never switch the Docker context.
+| Module | Typecheck | Unit suite |
+|---|---|---|
+| `server/` | `P pnpm --dir server typecheck --pretty false 2>&1 \| tail -n 40` | `P pnpm --dir server exec vitest run --silent --exclude '**/*.it.test.ts' 2>&1 \| tail -n 40` |
+| `client/` | `P pnpm --dir client typecheck --pretty false 2>&1 \| tail -n 40` | `P pnpm --dir client exec vitest run --silent 2>&1 \| tail -n 40` |
+| `reviewer-core/` | `npm --prefix reviewer-core run typecheck -- --pretty false 2>&1 \| tail -n 40` | `npm --prefix reviewer-core test -- --silent 2>&1 \| tail -n 40` |
+| `e2e/` | `npm --prefix e2e run typecheck 2>&1 \| tail -n 40` | `npm --prefix e2e run e2e:hermetic`, only when the plan asks for it |
+
+- Run each module's pair once, for the modules the diff touches (a
+  `reviewer-core/` change also runs the `server/` unit suite). One green
+  run is the evidence for every item it covers; do not re-run it per item.
+- A single test file, for a `tests` or `done` item:
+  `P pnpm --dir <module> exec vitest run '<test path>' --silent 2>&1 | tail -n 40`
+  (`npm --prefix reviewer-core test -- <test path> --silent …` for
+  reviewer-core). When the tail cuts off a failure, re-run that file with
+  `--reporter=verbose` and `tail -n 120`.
+- Server integration tests (`*.it.test.ts`) start a Postgres container
+  each: run only the files the plan names, one by one. They skip themselves
+  when Docker is unavailable (`TESTING.md`). Report them as skipped, with
+  the count — never as passed. Never switch the Docker context.
 - `LOG_LEVEL=` (empty) in `server/.env` makes `loadConfig()` throw in every
   integration test (`server/insights.md`, 2026-09-15). Report that error as
   an environment problem; do not edit `.env`.
@@ -72,13 +83,22 @@ cannot drift towards what is easy to confirm:
 - `V<n>` — each entry of `Verification`.
 - `O<n>` — each line of `Out of scope`, read as "this was not done".
 
-`Context`, `Open questions` and `For reviewers` are background, not items.
+`Requirement review`, `Execution mode`, `Context`, `Open questions` and
+`For reviewers` are background, not items.
 An assumption under `Open questions` that a step relies on is checked
 through that step.
 
-Plans in the tree do not all match the planner's template exactly
-(`plans/pr-list-last-reviewed-at.md` folds the change into its `Skills`
-line). Take items by meaning, not by label.
+An `## Amendments` section adds steps `A1`, `A2`…; take their items like
+any step's (`SA1.files`, `SA1.change`, …).
+
+When the task says "re-check only: <item ids>", still write the full item
+list, but verify only those ids and the `Scope` check; mark every other
+item `not re-checked` in the table and leave it out of the counts.
+`Result` then speaks for the re-checked items only — say so under it.
+
+Plans in the tree do not all match the implementation-planner's template
+exactly (`plans/pr-list-last-reviewed-at.md` folds the change into its
+`Skills` line). Take items by meaning, not by label.
 
 ## Step 2 — Establish what changed
 

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { SkillInput } from '@devdigest/shared';
+import { SetContextPathsInput, SkillInput } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError, ValidationError } from '../../platform/errors.js';
@@ -15,6 +15,7 @@ import { SkillsService } from './service.js';
  *   POST   /skills                                → create (writes v1)
  *   GET    /skills/:id                            → one skill + stats summary
  *   PUT    /skills/:id                            → partial update (+ optional message)
+ *   PUT    /skills/:id/context                    → replace attached project-context paths (no version bump)
  *   DELETE /skills/:id                            → delete (links cascade)
  *   GET    /skills/:id/versions                   → snapshots, newest first
  *   GET    /skills/:id/versions/:version          → one snapshot
@@ -81,6 +82,17 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       const skill = await service.update(workspaceId, req.params.id, req.body);
+      if (!skill) throw new NotFoundError('Skill not found');
+      return skill;
+    },
+  );
+
+  app.put(
+    '/skills/:id/context',
+    { schema: { params: IdParams, body: SetContextPathsInput } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const skill = await service.setContextPaths(workspaceId, req.params.id, req.body.paths);
       if (!skill) throw new NotFoundError('Skill not found');
       return skill;
     },

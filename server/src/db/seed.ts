@@ -14,6 +14,10 @@ import { TEST_QUALITY_SKILLS } from './seed-skills.js';
 const DEFAULT_PROVIDER = 'openrouter' as const;
 const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
 
+/** Text of the one project-context doc the seeded Security Reviewer trace says it included. */
+const SEED_SECURITY_BASELINE_DOC =
+  '# Security baseline\nSecrets live in environment variables, never in source. Public endpoints are rate limited.';
+
 /**
  * Seed the starter's demo data. Idempotent: re-running upserts the default
  * workspace/user and the demo fixtures.
@@ -356,11 +360,21 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         prompt_assembly: {
           system: SECURITY_REVIEWER_PROMPT,
           user: 'Review the diff for src/config.ts, src/middleware/ratelimit.ts, src/api/public/webhooks.ts, src/api/users.ts.',
+          // The exact block the engine put under `## Project context` for the one included doc.
+          specs: `<untrusted source="specs/security-baseline.md">\n${SEED_SECURITY_BASELINE_DOC}\n</untrusted>`,
         },
         tool_calls: [{ tool: 'read_file', args: "'src/config.ts'", meta: '1,240 bytes', ms: 120 }],
         raw_output: '{"verdict":"request_changes","score":61}',
         memory_pulled: [],
-        specs_read: [],
+        specs_read: ['specs/security-baseline.md'],
+        project_context: {
+          commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+          docs: [
+            { path: 'specs/security-baseline.md', tokens: 34, status: 'included' },
+            { path: 'docs/data-retention.md', tokens: 21400, status: 'skipped_budget' },
+            { path: 'specs/removed-doc.md', tokens: 0, status: 'missing' },
+          ],
+        },
         log: [
           { t: '00.00', kind: 'info', msg: 'Starting review with agent "Security Reviewer"' },
           { t: '08.20', kind: 'result', msg: 'Citation grounding: 3/3 passed' },

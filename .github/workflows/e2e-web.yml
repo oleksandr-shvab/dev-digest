@@ -15,12 +15,14 @@ on:
       - 'client/**'
       - 'server/**'
       - 'e2e/**'
+      - 'scripts/e2e-fixture-mirror.sh'
       - '.github/workflows/e2e-web.yml'
   pull_request:
     paths:
       - 'client/**'
       - 'server/**'
       - 'e2e/**'
+      - 'scripts/e2e-fixture-mirror.sh'
       - '.github/workflows/e2e-web.yml'
 
 permissions:
@@ -79,8 +81,21 @@ jobs:
         working-directory: reviewer-core
         run: npm ci
 
+      # The seeded demo repo has no clone on disk, so the Project Context flows
+      # read their docs from a fixture git repo at <clone dir>/acme/payments-api.
+      # Same script and same two variables as scripts/e2e.sh (the hermetic runner).
+      - name: Create fixture git mirror
+        env:
+          DEVDIGEST_CLONE_DIR: ${{ runner.temp }}/devdigest-clones
+        run: bash scripts/e2e-fixture-mirror.sh "$DEVDIGEST_CLONE_DIR"
+
       - name: Start API (:3001)
         working-directory: server
+        env:
+          DEVDIGEST_CLONE_DIR: ${{ runner.temp }}/devdigest-clones
+          # Small on purpose: docs/data-retention.md alone exceeds it, so the
+          # over-budget path is reachable (flow 11).
+          PROJECT_CONTEXT_BUDGET_TOKENS: '400'
         run: |
           # tsx directly (not `pnpm start`): the committed package.json's start
           # is `node dist/server.js`, which would need a build first. tsx runs

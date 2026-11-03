@@ -177,6 +177,23 @@ export class AgentsRepository {
       .onConflictDoNothing();
   }
 
+  /**
+   * Replace the attached project-context paths. A plain workspace-scoped UPDATE:
+   * attachments are not part of a version, so no version bump and no snapshot.
+   */
+  async setContextPaths(
+    workspaceId: string,
+    id: string,
+    paths: string[],
+  ): Promise<AgentRow | undefined> {
+    const [row] = await this.db
+      .update(t.agents)
+      .set({ contextPaths: paths })
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
+      .returning();
+    return row;
+  }
+
   // ---- agent_versions (immutable config snapshots) ------------------------
 
   /** All config snapshots for an agent, newest version first. */

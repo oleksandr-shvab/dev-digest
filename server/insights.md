@@ -67,6 +67,7 @@ true, but only on explicit request.
   of `fflate` / `@fastify/multipart`, because `pnpm add` had no registry access
   when it was written. Swapping in the packages later is a drop-in inside those
   two files; the parser API (`parseSkillImport`) does not change.
+- **2026-11-03** — `pnpm --dir server add <pkg>` exits non-zero with `ERR_PNPM_IGNORED_BUILDS` (esbuild, ssh2) but has still written `package.json`, `pnpm-lock.yaml` and `node_modules`, and it rewrites unrelated lockfile entries (debug, simple-git, testcontainers, drizzle-kit, vitest…) with a `(supports-color@7.2.0)` peer suffix — adding `picomatch` gave a +53/−32 lockfile diff. Don't read the exit code as a failed install, and expect a plan check like "lockfile diff shows only <pkg>" to fail on this churn. `server/pnpm-lock.yaml`
 
 ## Recurring Errors & Fixes
 

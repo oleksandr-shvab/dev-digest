@@ -74,6 +74,17 @@ export class AgentsService {
     return toAgentDto(row, counts.get(row.id) ?? 0);
   }
 
+  /**
+   * Replace the agent's attached project-context paths (given order kept, first
+   * duplicate wins). Not a config change: no version bump, no snapshot.
+   */
+  async setContextPaths(workspaceId: string, id: string, paths: string[]): Promise<Agent | undefined> {
+    const row = await this.repo.setContextPaths(workspaceId, id, [...new Set(paths)]);
+    if (!row) return undefined;
+    const counts = await this.repo.skillCounts(workspaceId);
+    return toAgentDto(row, counts.get(row.id) ?? 0);
+  }
+
   /** Delete an agent (and its versions/skill-links, via cascade). */
   async delete(workspaceId: string, id: string): Promise<boolean> {
     return this.repo.deleteById(workspaceId, id);

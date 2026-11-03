@@ -392,7 +392,7 @@ Code after restarting the MCP server.
   subagent did what (`subagents-named`).
 - Do not create `plans/blast-radius.md` by hand: the planner writes that file
   and does not overwrite an existing plan unless asked to revise it
-  ([planner.md](../../.claude/agents/planner.md)).
+  ([implementation-planner.md](../../.claude/agents/implementation-planner.md)).
 - The plan carries the mcp-server step with the skills that `routing.json`
   assigns to `mcp-server/src/**`, and its typecheck under Extra checks (see
   Starter state). A change to the shared contract is one step that edits both

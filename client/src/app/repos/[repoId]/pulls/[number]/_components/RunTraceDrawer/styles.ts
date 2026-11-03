@@ -95,6 +95,9 @@ export const s = {
   configModel: { color: "var(--accent-text)" } satisfies CSSProperties,
   configProvider: { color: "var(--text-secondary)" } satisfies CSSProperties,
   specsWrap: { display: "flex", gap: 6, flexWrap: "wrap" } satisfies CSSProperties,
+  specsList: { display: "flex", flexDirection: "column", gap: 4 } satisfies CSSProperties,
+  specLine: { display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap", fontSize: 12 } satisfies CSSProperties,
+  specMeta: { color: "var(--text-muted)" } satisfies CSSProperties,
   specsNone: { color: "var(--text-muted)" } satisfies CSSProperties,
   spec: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
 

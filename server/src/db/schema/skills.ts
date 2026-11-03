@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -31,6 +32,8 @@ export const skills = pgTable(
     enabled: boolean('enabled').notNull().default(true),
     version: integer('version').notNull().default(1),
     evidenceFiles: jsonb('evidence_files').$type<string[]>(),
+    /** Project-context docs (repo-relative .md paths), ordered. Not part of a version. */
+    contextPaths: jsonb('context_paths').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     createdAt: now(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

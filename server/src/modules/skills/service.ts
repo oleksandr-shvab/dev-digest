@@ -156,6 +156,15 @@ export class SkillsService {
 
   // ---- stats --------------------------------------------------------------
 
+  /**
+   * Replace the skill's attached project-context paths (given order kept, first
+   * duplicate wins). Not a version-bumping change.
+   */
+  async setContextPaths(workspaceId: string, id: string, paths: string[]): Promise<Skill | undefined> {
+    const row = await this.repo.setContextPaths(workspaceId, id, [...new Set(paths)]);
+    return row ? this.withStats(row) : undefined;
+  }
+
   async stats(workspaceId: string, id: string): Promise<SkillStats | undefined> {
     const skill = await this.repo.getById(workspaceId, id);
     if (!skill) return undefined;

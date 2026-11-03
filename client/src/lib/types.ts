@@ -28,8 +28,6 @@ export type {
   PrReviewComment,
   PrStatus,
   FindingCounts,
-  SpecFile,
-  IndexStatus,
 } from "@devdigest/shared";
 
 export type { Review, Finding, Severity, Verdict } from "@devdigest/shared";

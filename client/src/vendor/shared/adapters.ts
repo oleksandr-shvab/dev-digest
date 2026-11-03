@@ -191,6 +191,17 @@ export interface GitCommit {
   date: string;
 }
 
+/** One blob entry of a commit's tree (`git ls-tree -r -l`). */
+export interface GitTreeEntry {
+  path: string;
+  /** Git file mode, e.g. '100644' regular, '100755' executable, '120000' symlink. */
+  mode: string;
+  /** Blob object id (40-hex sha). */
+  blob: string;
+  /** Blob size in bytes. */
+  size: number;
+}
+
 export interface GitClient {
   clone(repo: RepoRef, url: string, opts?: CloneOptions): Promise<{ path: string }>;
   fetchPullHead(repo: RepoRef, n: number): Promise<void>;
@@ -199,6 +210,17 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Every blob of the tree at `ref` (a full 40-hex commit sha), recursively, with
+   * its mode. Submodule entries are dropped. Lets callers read files at ONE commit
+   * without touching the worktree.
+   */
+  listTree(repo: RepoRef, ref: string): Promise<GitTreeEntry[]>;
+  /**
+   * Raw bytes of the given blob shas in one batch. A sha that does not exist maps
+   * to `null`. Throws on a malformed sha.
+   */
+  readBlobs(repo: RepoRef, blobs: string[]): Promise<Map<string, Buffer | null>>;
   clonePathFor(repo: RepoRef): string;
 }
 

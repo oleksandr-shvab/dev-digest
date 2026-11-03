@@ -18,6 +18,8 @@ true, but only on explicit request.
 
 ## Tool & Library Notes
 
+- **2026-11-03** — `reviewer-core` is an npm package (`package-lock.json`); running `pnpm --dir reviewer-core exec …` there triggers an implicit pnpm install that fails with `ERR_PNPM_IGNORED_BUILDS` and leaves untracked `reviewer-core/pnpm-lock.yaml`, `reviewer-core/pnpm-workspace.yaml` and a `node_modules/.pnpm` layout behind. Use only `npm --prefix reviewer-core …` (as `.claude/agents/implementer.md` § Checks does), even when a plan's Done-when is written with `pnpm --dir`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

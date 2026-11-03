@@ -37,7 +37,20 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['off', 'summary', 'full']).optional(),
   ),
+  // Project context: `;`-separated doc search globs (`,` would clash with the
+  // brace list in the default) and the per-run token budget for attached docs.
+  // Empty values count as unset, like PROMPT_LOG_DETAIL above.
+  PROJECT_CONTEXT_GLOBS: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  PROJECT_CONTEXT_BUDGET_TOKENS: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().positive().optional(),
+  ),
 });
+
+/** Default doc search glob for Project Context (picomatch syntax). */
+export const DEFAULT_PROJECT_CONTEXT_GLOB = '**/{specs,docs,insights}/**/*.md';
+/** Default per-run token budget for attached project docs. */
+export const DEFAULT_PROJECT_CONTEXT_BUDGET_TOKENS = 20000;
 
 /** How much of the prompt's assembly is logged. All levels log sizes, never content. */
 export type PromptLogDetail = 'off' | 'summary' | 'full';
@@ -82,6 +95,10 @@ export type AppConfig = {
   promptLogDetail: PromptLogDetail;
   /** True when PROMPT_LOG_DETAIL=full was requested outside development and ignored. */
   promptLogDetailDowngraded: boolean;
+  /** Globs (picomatch) that decide which repo files are offered as project docs. */
+  projectContextGlobs: string[];
+  /** Max tokens of attached project docs added to one run's prompt. */
+  projectContextBudgetTokens: number;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -90,6 +107,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
   const promptLog = resolvePromptLogDetail(parsed.PROMPT_LOG_DETAIL, parsed.NODE_ENV);
+  const globs = (parsed.PROJECT_CONTEXT_GLOBS ?? '')
+    .split(';')
+    .map((g) => g.trim())
+    .filter((g) => g.length > 0);
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
@@ -103,5 +124,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
     promptLogDetail: promptLog.detail,
     promptLogDetailDowngraded: promptLog.downgraded,
+    projectContextGlobs: globs.length > 0 ? globs : [DEFAULT_PROJECT_CONTEXT_GLOB],
+    projectContextBudgetTokens:
+      parsed.PROJECT_CONTEXT_BUDGET_TOKENS ?? DEFAULT_PROJECT_CONTEXT_BUDGET_TOKENS,
   };
 }

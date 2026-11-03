@@ -2,6 +2,7 @@ import { simpleGit, type SimpleGit } from 'simple-git';
 import { join } from 'node:path';
 import { mkdir, readFile, access, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
+import { spawn } from 'node:child_process';
 import type {
   GitClient,
   RepoRef,
@@ -9,8 +10,10 @@ import type {
   UnifiedDiff,
   BlameLine,
   GitCommit,
+  GitTreeEntry,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './diff-parser.js';
+import { ValidationError } from '../../platform/errors.js';
 
 /**
  * Depth fetched by `sync()`. Deeper than the shallow clone (CLONE_DEPTH=1) so the
@@ -18,6 +21,13 @@ import { parseUnifiedDiff } from './diff-parser.js';
  * when it isn't, the indexer falls back to a full reindex.
  */
 const RESYNC_FETCH_DEPTH = 50;
+
+/** A full object id; the only shape of ref/sha that reaches a git argument or stdin. */
+const FULL_SHA = /^[0-9a-f]{40}$/;
+/** `git cat-file --batch` is killed after this long, whatever it is doing. */
+const CAT_FILE_TIMEOUT_MS = 15_000;
+/** One `git ls-tree -r -l -z` record: `<mode> <type> <sha> <size>\t<path>`. */
+const LS_TREE_RECORD = /^(\d+) (\w+) ([0-9a-f]{40}) +(\d+|-)\t([\s\S]+)$/;
 
 /**
  * GitClient over simple-git. Repos clone to
@@ -128,6 +138,90 @@ export class SimpleGitClient implements GitClient {
 
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
+  }
+
+  /**
+   * Blob entries of the tree at `ref`, straight from git objects (no worktree
+   * walk). `ref` must be a full sha. Submodule (`commit`) entries are dropped;
+   * the mode is kept so a caller can reject symlinks (`120000`).
+   */
+  async listTree(repo: RepoRef, ref: string): Promise<GitTreeEntry[]> {
+    if (!FULL_SHA.test(ref)) throw new ValidationError('ref must be a full 40-hex commit sha');
+    const raw = await this.git(repo).raw(['ls-tree', '-r', '-l', '-z', ref]);
+    const out: GitTreeEntry[] = [];
+    for (const record of raw.split('\0')) {
+      if (record.length === 0) continue;
+      const m = LS_TREE_RECORD.exec(record);
+      if (!m || m[2] !== 'blob') continue;
+      out.push({ mode: m[1]!, blob: m[3]!, size: Number(m[4]), path: m[5]! });
+    }
+    return out;
+  }
+
+  /**
+   * Exact bytes of many blobs through one `git cat-file --batch` process
+   * (simple-git cannot feed stdin). Every sha is validated before it is written.
+   */
+  async readBlobs(repo: RepoRef, blobs: string[]): Promise<Map<string, Buffer | null>> {
+    for (const sha of blobs) {
+      if (!FULL_SHA.test(sha)) throw new ValidationError('blob id must be a 40-hex sha');
+    }
+    const result = new Map<string, Buffer | null>();
+    if (blobs.length === 0) return result;
+    const unique = [...new Set(blobs)];
+
+    const stdout = await new Promise<Buffer>((resolve, reject) => {
+      const child = spawn('git', ['cat-file', '--batch'], {
+        cwd: this.clonePathFor(repo),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const chunks: Buffer[] = [];
+      let stderr = '';
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+      const timer = setTimeout(() => {
+        child.kill('SIGKILL');
+        settle(() => reject(new Error('git cat-file timed out')));
+      }, CAT_FILE_TIMEOUT_MS);
+      child.stdout.on('data', (c: Buffer) => chunks.push(c));
+      child.stderr.on('data', (c: Buffer) => (stderr += c.toString('utf8')));
+      child.on('error', (e) => settle(() => reject(e)));
+      child.on('close', (code) =>
+        settle(() =>
+          code === 0
+            ? resolve(Buffer.concat(chunks))
+            : reject(new Error(`git cat-file exited with ${code}: ${stderr.trim()}`)),
+        ),
+      );
+      // EPIPE when git dies early surfaces through 'close'/'error' above.
+      child.stdin.on('error', () => {});
+      child.stdin.end(unique.map((sha) => `${sha}\n`).join(''));
+    });
+
+    // Frames: `<sha> blob <size>\n<bytes>\n` or `<sha> missing\n`, in request order.
+    let pos = 0;
+    for (const sha of unique) {
+      const nl = stdout.indexOf(0x0a, pos);
+      if (nl === -1) throw new Error('git cat-file: truncated output');
+      const header = stdout.toString('utf8', pos, nl).split(' ');
+      pos = nl + 1;
+      if (header[1] === 'missing') {
+        result.set(sha, null);
+        continue;
+      }
+      const size = Number(header[2]);
+      if (header[1] !== 'blob' || !Number.isInteger(size) || pos + size > stdout.length) {
+        throw new Error('git cat-file: unexpected output');
+      }
+      result.set(sha, Buffer.from(stdout.subarray(pos, pos + size)));
+      pos += size + 1;
+    }
+    return result;
   }
 }
 

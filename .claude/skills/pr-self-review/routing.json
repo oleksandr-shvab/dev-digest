@@ -27,7 +27,7 @@
     "**/*.zip",
     "**/*.gz"
   ],
-  "not_reviewers": ["mermaid-diagram", "engineering-insights", "pr-self-review"],
+  "not_reviewers": ["mermaid-diagram", "engineering-insights", "pr-self-review", "spec-creator", "run-plan", "analyze-workflow"],
   "reviewers": {
     "project-rules": { "instructions": ".claude/skills/pr-self-review/project-rules.md" }
   },

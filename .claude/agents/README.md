@@ -10,40 +10,75 @@ prompts.
 | Agent | Job | Model | Tools | Preloaded skills |
 |---|---|---|---|---|
 | [researcher](researcher.md) | Answers one concrete question with cited evidence, from this repo or from external sources | `sonnet` | Read, Grep, Glob, Bash, WebSearch, WebFetch | none |
-| [planner](planner.md) | Turns one requirement into a Development Plan | `opus` | Read, Grep, Glob, Write | 12 project skills (below) |
-| [implementer](implementer.md) | Executes an approved plan and verifies its own diff | `sonnet` | Read, Edit, Write, Grep, Glob, Bash, Skill | the same 12 |
-| [plan-verifier](plan-verifier.md) | Checks the finished code against every item of a plan; pass, fail or unverified with evidence | `opus` | Read, Grep, Glob, Bash | none |
-| [architecture-reviewer](architecture-reviewer.md) | Checks architectural boundaries; findings with quoted code and quoted rule | `opus` | Read, Grep, Glob | `onion-architecture`, `frontend-ui-architecture`, `next-best-practices` |
-| [test-writer](test-writer.md) | Writes and runs tests for existing code, in test files only | `sonnet` | Read, Grep, Glob, Edit, Write, Bash | `react-testing-library`, `fastify-best-practices`, `engineering-insights` |
+| [implementation-planner](implementation-planner.md) | Checks the requirements, asks, recommends, and turns them into an implementation plan; never writes specs | `opus` | Read, Grep, Glob, Write | 12 project skills (below) |
+| [implementer](implementer.md) | Executes an approved plan and verifies its own diff | `sonnet` | Read, Edit, Write, Grep, Glob, Bash, Skill | none — loads each step's skills with Skill |
+| [plan-verifier](plan-verifier.md) | Checks the finished code against every item of a plan; pass, fail or unverified with evidence | `sonnet` | Read, Grep, Glob, Bash | none |
+| [architecture-reviewer](architecture-reviewer.md) | Checks architectural boundaries; findings with quoted code and quoted rule | `sonnet` | Read, Grep, Glob | `onion-architecture`, `frontend-ui-architecture`, `next-best-practices` |
+| [test-writer](test-writer.md) | Writes and runs tests for existing code, in test files only | `sonnet` | Read, Grep, Glob, Edit, Write, Bash | none — reads the testing skill of the module with Read |
 | [doc-writer](doc-writer.md) | Documents implemented features with diagrams, in the module's `docs/` and README maps | `sonnet` | Read, Grep, Glob, Write, Edit | `mermaid-diagram` |
 
-Preloaded skills (planner and implementer): `onion-architecture`,
+Preloaded skills (implementation-planner only): `onion-architecture`,
 `fastify-best-practices`, `drizzle-orm-patterns`, `postgresql-table-design`,
 `zod`, `frontend-ui-architecture`, `next-best-practices`,
 `react-best-practices`, `react-testing-library`, `typescript-expert`,
-`security`, `engineering-insights`. Their full text is injected into every run
-(about 2,600 lines), whatever the task touches.
+`security`, `engineering-insights`. Their full text (about 115 KB, ~29k
+tokens) is injected into every run, whatever the task touches — affordable
+for one planner run, not for an implementer per work package. The
+implementer loads only the skills the plan assigns to its steps.
+
+Token budget of the implementation agents: every test and typecheck command
+prints only its tail (`--silent … | tail -n 40`); steps run only their own
+or related tests (`vitest related`); full unit suites run once at the end;
+server integration tests (`*.it.test.ts`, one Postgres container each) run
+only when the plan names them. Implementer and test-writer return insight
+candidates instead of writing `insights.md`, because several of them may
+run at once; the caller records insights at the end of the task.
 
 ## How they fit together
 
 ```
-requirement ──► planner ──► plans/<slug>.md ──► (you approve) ──► implementer ──► report + code changes
-                  ▲                                                    ▲                   │
-                  │                                                    │                   ▼
-              researcher                                               │             plan-verifier
-         (open questions,                                              │                   │
-          from any agent)                                              │                   ▼
-                                                                       │         architecture-reviewer
+requirement ──► implementation-planner ──► questions, recommendations, execution mode ──► (you answer)
+                  ▲                    │
+                  │                    └─ run again with the answers ──► plans/<slug>.md ──► (you approve)
+                  │                                                                              │
+                  │                                                    ┌─────────────────────────┘
+                  │                                                    ▼
+                  │                                         implementer (one run, or one per
+                  │                                         work package) ──► report + code changes
+              researcher                                               ▲                   │
+         (open questions,                                              │                   ▼
+          from any agent)                                              │        plan-verifier (gate)
+                                                                       │                   │ verified
+                                                                       │                   ▼
+                                                                       │   architecture-reviewer ‖ /code-review
                                                                        │                   │
                                                                        │                   ▼
-                                                                       │              doc-writer ──► docs/ pages
+                                                                       │   test-writer (only on test gaps)
+                                                                       │                   │
+                                                                       │                   ▼
+                                                                       │   doc-writer ──► /pr-self-review
                                                                        │
-  returns:  plan-verifier gaps on code ─────────────────────────────────┤
-            plan-verifier gaps on tests ──► test-writer ──► suspected defects ─┤
-            architecture-reviewer findings, fix inside the plan ───────┘
-            architecture-reviewer findings, fix needs a new seam ──► planner
+  returns:  plan-verifier gaps on code ─────────────────────────────────┤  (then plan-verifier on the
+            test-writer suspected defects ─────────────────────────────┤   failed items, ≤ 2 rounds)
+            review findings, fix inside the plan ──────────────────────┘
+            review findings, fix needs a new seam ──► implementation-planner
 ```
 
+- `plan-verifier` runs first, as a gate: reviewing or testing code that is
+  not yet complete means doing it twice. Review starts only once every item
+  passes or is knowingly left `unverified`.
+- `architecture-reviewer` checks boundaries only — not bugs. Correctness is
+  `/code-review` (built into Claude Code), run beside it.
+- `test-writer` is not a standing stage: the plan's steps carry their own
+  tests, so it runs only on `S<n>.tests` gaps from `plan-verifier`.
+
+- [`/run-plan plan:<path>`](../skills/run-plan/SKILL.md) runs the chain from
+  an approved plan to a report, with no questions: implementer per work
+  package → `architecture-reviewer` ‖ `plan-verifier` → a bounded fix loop.
+  The spec (`/spec-creator`) and the plan (`implementation-planner`) are run
+  by hand before it, and `test-writer` is deliberately not part of it. It
+  uses the agents' modes made for it: implementer fix mode (`Fix list`),
+  plan-verifier "re-check only", architecture-reviewer `Rejected findings`.
 - Agents never call each other. Each starts with no memory of the conversation,
   so the plan file on disk is the whole handoff, and the caller (you, or the
   main session) moves it from one agent to the next.
@@ -66,15 +101,23 @@ requirement ──► planner ──► plans/<slug>.md ──► (you approve) 
 - **Permissions:** no Write/Edit, no Skill, no Agent. Bash is for read-only commands,
   by instruction. It is the only agent here with web access.
 
-### planner
+### implementation-planner
 
-- **Does:** reads the touched modules' `CLAUDE.md` and `insights.md`, maps every
-  file to skills, and writes the plan. Never writes code.
-- **Input:** a requirement, or a spec path.
-- **Output:** `plans/<slug>.md` (steps with files, change, skills, dependencies,
-  tests, `Done when`; plus out-of-scope, contracts, verification, open
-  questions, notes for reviewers), and a short report that points at it. An
-  unclear requirement gets a `Needs clarification` block and no file.
+- **Does:** reads the touched modules' `CLAUDE.md` and `insights.md`, checks the
+  requirements (complete, unambiguous, consistent, feasible), asks what is
+  unclear, offers its own recommendations, maps every file to skills, and
+  writes the plan. Never writes or edits specs, never settles a product
+  decision, never writes code.
+- **Input:** a requirement, or a spec path. Runs in two rounds: the first
+  returns a `Before planning` block (requirement check, questions,
+  recommendations, and the single-agent vs multi-agent question) and no
+  file; the caller asks the user and runs it again with the answers.
+- **Output:** `plans/<slug>.md` (requirement review, execution mode with work
+  packages in multi-agent mode, steps with files, change, skills,
+  dependencies, tests, `Done when`; plus out-of-scope, contracts,
+  verification, open questions, notes for reviewers), and a short report
+  that points at it. It writes the plan only when the task carries the
+  user's execution-mode choice.
 - **Permissions:** Write is allowed but by instruction only for `plans/<slug>.md`;
   no Edit, no Bash, no Skill, no Agent. It cannot run anything, so its
   plan's checks are unverified until the implementer runs them.
@@ -85,13 +128,14 @@ requirement ──► planner ──► plans/<slug>.md ──► (you approve) 
 ### implementer
 
 - **Does:** executes the plan's steps in order, applies the skills each step
-  assigns, runs typecheck and tests per touched module before and after, records
-  insights.
-- **Input:** a plan path. No path, a missing file, or a plan without steps gives
+  assigns (loaded with Skill), runs each step's own or related tests, then
+  the typecheck and unit suite of the touched modules once at the end; takes
+  the baseline from the task when the caller passes one.
+- **Input:** a plan path, optionally one work package from it. No path, a missing file, or a plan without steps gives
   a `blocked` report; it never writes a plan itself.
 - **Output:** code changes in the working tree and an `# Implementation report`
   (per-step status, verification table with the commands' own summary lines,
-  deviations, blockers, notes for reviewers, insights recorded).
+  deviations, blockers, notes for reviewers, insight candidates).
 - **Permissions:** Edit and Write on the working tree; Bash limited by
   instruction to typecheck/test commands, `pnpm db:generate` for a schema step
   and read-only git; no commits, installs, migrations on the dev DB, Docker volume
@@ -109,8 +153,9 @@ requirement ──► planner ──► plans/<slug>.md ──► (you approve) 
 - **Output:** a `# Plan verification` report with a traceability table, gaps,
   unverified items, scope and the commands run.
 - **Permissions:** no Write/Edit, no Skill, no Agent, no web. Bash limited by
-  instruction to read-only git and the checks of `implementer.md` Step 3. No
-  preloaded skills.
+  instruction to read-only git and the compact checks in its own table (unit
+  suites, plus only the integration tests the plan names). No preloaded
+  skills.
 
 ### architecture-reviewer
 
@@ -136,7 +181,8 @@ requirement ──► planner ──► plans/<slug>.md ──► (you approve) 
   `plan-verifier` gap. A task with no concrete target gets a `Needs
   clarification` block.
 - **Output:** test files and a `# Test report` (tests written, runs with the
-  commands' own summary lines, suspected defects, not covered, insights).
+  commands' own summary lines, suspected defects, not covered, insight
+  candidates).
 - **Permissions:** Edit and Write for test files only, by instruction; Bash
   limited to the test and typecheck commands and read-only git. No Skill, no
   Agent, no web; no e2e flows, no new dependencies.
@@ -156,19 +202,19 @@ requirement ──► planner ──► plans/<slug>.md ──► (you approve) 
 
 ## What is enforced and what is only asked
 
-- Enforced by `tools`: which tools exist at all (planner cannot run commands;
+- Enforced by `tools`: which tools exist at all (implementation-planner cannot run commands;
   nobody here can spawn agents; only researcher can reach the web).
   `architecture-reviewer` cannot write, edit or run anything; `plan-verifier`
   cannot write or edit; `doc-writer` cannot run anything.
 - Enforced by `skills`: which skills are in context from the start.
-- Asked in the prompt only: planner writes a single file; implementer's Bash
+- Asked in the prompt only: implementation-planner writes a single file and no specs; implementer's Bash
   limits and file scope; `plan-verifier`'s and `test-writer`'s Bash limits; the
   paths `test-writer` and `doc-writer` may write. Claude Code's own documentation calls Bash command
   patterns fragile and not a security boundary, so these are guard rails, not locks.
 - `permissionMode` is not set: when the calling session runs in an
   auto-accepting mode, a subagent's own setting is ignored.
 
-## Sources behind the planner and implementer rules
+## Sources behind the implementation-planner and implementer rules
 
 Primary sources are Anthropic's own documentation. "Read in full" means the page
 text was fetched and the field names and wording checked against it; the other
@@ -177,8 +223,8 @@ sources were read through a summarising fetch tool and are not verified word for
 | Practice | Source | Where it shows up |
 |---|---|---|
 | Agent file format and frontmatter fields; `tools` list; omitting `Agent` stops spawning; `skills` injects full text; `disable-model-invocation` skills cannot be preloaded; subagents load `CLAUDE.md` and have no `AskUserQuestion` | [Create custom subagents](https://code.claude.com/docs/en/sub-agents) (read in full) | both files' frontmatter; "Tools and limits"; final paragraph about global reply formats |
-| Least-privilege tool lists; one task per agent | same page; [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) | planner without Bash/Edit; implementer without Agent/web |
-| Bash restrictions are fragile, not a security boundary | [Configure permissions](https://code.claude.com/docs/en/permissions) | planner has no Bash; implementer's command table is stated as instruction |
+| Least-privilege tool lists; one task per agent | same page; [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) | implementation-planner without Bash/Edit; implementer without Agent/web |
+| Bash restrictions are fragile, not a security boundary | [Configure permissions](https://code.claude.com/docs/en/permissions) | implementation-planner has no Bash; implementer's command table is stated as instruction |
 | Pass long artifacts as files; plans that name files, scope and an end-to-end check | [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system); [Best practices for Claude Code](https://code.claude.com/docs/en/best-practices) | `plans/<slug>.md`; plan sections Out of scope, Steps, Verification |
 | A delegation brief states objective, output format, tools and boundaries | multi-agent research system post | exact output formats and boundaries in both prompts |
 | Give the agent a check it can run, and require evidence | Best practices for Claude Code | implementer "Verify" step; "claim nothing you did not run" |
@@ -212,7 +258,7 @@ not the tool's or the standard's own documentation.
 | Pre-existing debt reported apart from new violations | [dependency-cruiser CLI](https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md) | `introduced` / `pre-existing` / `not determined` |
 | Server/client boundary is a module-graph rule; props must be serializable; `children` Server Components are fine | [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components); [Server and client boundary](https://nextjs.org/docs/app/guides/server-and-client-boundary) | `next-best-practices/rsc-boundaries` check |
 | One row per requirement with method, status and result; evidence from the environment; an explicit "unverified" | [NASA product verification](https://www.nasa.gov/reference/5-3-product-verification/); [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents); [Demystifying evals](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents); [RTM](https://stell-engineering.com/blog/requirements-traceability-matrix) (secondary) | `plan-verifier` traceability table |
-| Verifier and reviewer on a different model from the implementer | [Develop tests](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests) | `model: opus` on both |
+| Verifier and reviewer on a different model from the implementer | [Develop tests](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests) | Both are `model: sonnet`, like the implementer, to save tokens: the verdicts rest on quoted code and command output, not on a stronger model. Put `model: opus` back on the one that misses subtle gaps |
 | One page is one kind of document; reference only describes | [Diátaxis](https://diataxis.fr/compass/) | `doc-writer` Step 3 |
 | Change docs with the code; remove dead docs | [Google docs best practices](https://google.github.io/styleguide/docguide/best_practices.html); [Docs as code](https://www.writethedocs.org/guide/docs-as-code/) | `doc-writer` update-not-duplicate rule |
 | Fenced `mermaid` blocks render on GitHub, which pins its own Mermaid version | [Creating diagrams](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams); [Mermaid syntax reference](https://mermaid.js.org/intro/syntax-reference.html) | `doc-writer` Step 5 |

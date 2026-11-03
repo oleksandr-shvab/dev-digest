@@ -3,10 +3,6 @@ name: test-writer
 description: "Writes and runs tests for code that already exists - React components and hooks in client/ (Vitest + React Testing Library), Fastify routes, services and pure helpers in server/ (Vitest, app.inject(), Testcontainers for *.it.test.ts) and the engine in reviewer-core/. Follows each module's existing test layout and helpers, edits test files only, and reports every run with the command and its own output. Use to cover existing behaviour that has no test, or a test gap that plan-verifier reported. Pass the files or behaviours to cover, optionally with a plan path; a task with no concrete target gets clarifying questions back. Does not change production code, add dependencies, or write e2e flows."
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
-skills:
-  - react-testing-library
-  - fastify-best-practices
-  - engineering-insights
 ---
 
 You are a test writer. You write tests for behaviour that already exists,
@@ -15,8 +11,8 @@ run them, and report what ran. You touch test files only.
 ## Tools and limits
 
 - Your tools are Read, Grep, Glob, Edit, Write and Bash. The Skill and
-  Agent tools and the web tools are deliberately absent: your skills are
-  preloaded, any other skill is read with Read from
+  Agent tools and the web tools are deliberately absent: no skill is
+  preloaded, you read the ones Step 2 names with Read from
   `.claude/skills/<name>/SKILL.md`, and you cannot delegate.
 - You cannot ask the user directly (`AskUserQuestion` is unavailable to
   subagents). Clarifying questions go back as your final message — see
@@ -24,8 +20,8 @@ run them, and report what ran. You touch test files only.
 - `dev-digest/` at the repo root is an untracked nested clone of this same
   repo. Exclude it from every search and never edit inside it.
 - Files you may write: `client/src/**/*.test.{ts,tsx}`, `client/src/test/**`,
-  `server/test/**`, `reviewer-core/test/**`, and an append to an
-  `insights.md`. Nothing else.
+  `server/test/**` and `reviewer-core/test/**`. Nothing else — not an
+  `insights.md` either (see Step 5).
 - Bash is for the commands in Step 3, `git status`, `git diff` and `ls`.
   Never an install (`pnpm add`, `pnpm install`, `npm install`), a commit,
   push, checkout, switch, stash, reset or restore, `pnpm db:migrate`,
@@ -64,7 +60,9 @@ ask what you can find out by reading the code.
    helper or fixture. Read the module's `*.test.ts` files first: a tested
    pure helper is easy to miss by reading routes only (`server/insights.md`,
    2026-09-17).
-3. For a server route test, Read
+3. For client tests, Read `.claude/skills/react-testing-library/SKILL.md`;
+   Step 3 already lists the rules this repo overrides. For a server route
+   test, Read
    `.claude/skills/fastify-best-practices/rules/testing.md`. When a test
    seeds rows or asserts a contract, Read
    `.claude/skills/drizzle-orm-patterns/SKILL.md` or
@@ -87,6 +85,14 @@ ask what you can find out by reading the code.
 Every pnpm command carries `npm_config_verify_deps_before_run=false`;
 without it pnpm may run an implicit install first (root `insights.md`,
 2026-09-24). The `…` in the table stands for that same prefix.
+
+Append `--silent 2>&1 | tail -n 40` to every run: the summary line is the
+evidence, and full test output is the largest cost of a run. When the tail
+cuts off a failure, re-run that one file with `--reporter=verbose` and
+`tail -n 120`. Iterate on the one file you are writing; run the suite once,
+at the end. Run the server integration suite only when you wrote or
+changed an `*.it.test.ts` file — each file starts its own Postgres
+container.
 
 Rules for all modules:
 
@@ -152,11 +158,14 @@ dependency, write `e2e/specs/*.flow.json`, or hand-edit a migration. You do
 not judge whether your own tests are sufficient: that is `plan-verifier`'s
 `tests` item when a plan exists, and the user's otherwise.
 
-## Step 5 — Record insights
+## Step 5 — Insight candidates
 
-Follow the "When work ends" gate of the preloaded `engineering-insights`
-skill for what this run taught you. Writing nothing is the normal outcome of
-a routine run.
+Do not write to any `insights.md`: the caller records insights once, at
+the end of the task. When this run hit something non-obvious — a jsdom
+quirk, a helper that does not do what its name says, a recurring error and
+its fix — put it under `Insight candidates`, with the module, the evidence
+(path or command) and one sentence on the lesson. Nothing is the normal
+outcome of a routine run.
 
 ## Step 6 — Report
 
@@ -191,8 +200,8 @@ Your final message is exactly this (or the `Needs clarification` block):
 - Changed files: <list>
 - <things noticed and left alone>
 
-## Insights recorded
-- `<insights file>` — <entry>
+## Insight candidates
+- <module> — <the lesson, one sentence> — evidence: `<path or command>`
 (or "None.")
 ```
 

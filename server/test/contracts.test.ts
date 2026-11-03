@@ -17,6 +17,12 @@ import {
   Settings,
   Repo,
   PrDetail,
+  Agent,
+  Skill,
+  AttachmentPath,
+  SetContextPathsInput,
+  ProjectContextList,
+  MAX_ATTACHED_DOCS,
 } from '@devdigest/shared';
 
 /**
@@ -228,5 +234,125 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('project context contracts', () => {
+  it('AttachmentPath accepts repo-relative Markdown paths', () => {
+    for (const p of ['specs/a.md', 'docs/x/y.MD', 'a/b/c.md']) {
+      expect(AttachmentPath.safeParse(p).success, p).toBe(true);
+    }
+  });
+
+  it('AttachmentPath rejects unsafe or non-Markdown paths', () => {
+    const bad = [
+      '/etc/passwd.md',
+      '../a.md',
+      'a/../b.md',
+      './a.md',
+      'a//b.md',
+      'a\\b.md',
+      '.git/x.md',
+      'node_modules/x/docs/a.md',
+      'a.txt',
+      '',
+      'a\u0000b.md',
+      'a\nb.md',
+      `${'a'.repeat(510)}.md`,
+    ];
+    expect(bad.at(-1)).toHaveLength(513);
+    for (const p of bad) {
+      expect(AttachmentPath.safeParse(p).success, JSON.stringify(p)).toBe(false);
+    }
+    expect(AttachmentPath.safeParse(`${'a'.repeat(509)}.md`).success).toBe(true);
+  });
+
+  it('SetContextPathsInput caps the list at MAX_ATTACHED_DOCS', () => {
+    const paths = (n: number): string[] => Array.from({ length: n }, (_, i) => `docs/${i}.md`);
+    expect(SetContextPathsInput.safeParse({ paths: paths(MAX_ATTACHED_DOCS) }).success).toBe(true);
+    expect(SetContextPathsInput.safeParse({ paths: paths(MAX_ATTACHED_DOCS + 1) }).success).toBe(false);
+    expect(SetContextPathsInput.safeParse({ paths: ['../x.md'] }).success).toBe(false);
+  });
+
+  const trace = {
+    config: { agent: 'a', model: 'm' },
+    stats: {
+      duration_ms: 1,
+      tokens_in: 1,
+      tokens_out: 1,
+      cost_usd: null,
+      findings: 0,
+      grounding: '0/0',
+    },
+    prompt_assembly: { system: 's', user: 'u' },
+    tool_calls: [],
+    raw_output: '',
+    memory_pulled: [],
+    specs_read: [],
+    log: [],
+  };
+
+  it('RunTrace parses with and without project_context', () => {
+    expect(RunTrace.parse(trace).project_context).toBeUndefined();
+    const withCtx = RunTrace.parse({
+      ...trace,
+      specs_read: ['specs/a.md'],
+      project_context: {
+        commit: 'a'.repeat(40),
+        docs: [
+          { path: 'specs/a.md', tokens: 10, status: 'included' },
+          { path: 'docs/b.md', tokens: 900, status: 'skipped_budget' },
+          { path: 'docs/c.md', tokens: 0, status: 'missing' },
+        ],
+      },
+    });
+    expect(withCtx.project_context?.docs).toHaveLength(3);
+    expect(
+      RunTrace.safeParse({ ...trace, project_context: { commit: null, docs: [{ path: 'a.md', tokens: 1, status: 'bogus' }] } })
+        .success,
+    ).toBe(false);
+  });
+
+  it('Agent and Skill default context_paths to []', () => {
+    const agent = Agent.parse({
+      id: 'a1',
+      name: 'n',
+      description: 'd',
+      provider: 'openai',
+      model: 'm',
+      system_prompt: 's',
+      enabled: true,
+      version: 1,
+    });
+    expect(agent.context_paths).toEqual([]);
+    const skill = Skill.parse({
+      id: 's1',
+      name: 'n',
+      description: 'd',
+      type: 'custom',
+      source: 'manual',
+      body: 'b',
+      enabled: true,
+      version: 1,
+    });
+    expect(skill.context_paths).toEqual([]);
+    expect(Skill.parse({ ...skill, context_paths: ['specs/a.md'] }).context_paths).toEqual(['specs/a.md']);
+  });
+
+  it('ProjectContextList parses a sample', () => {
+    const list = ProjectContextList.parse({
+      repo_id: 'r1',
+      status: 'ok',
+      globs: ['**/{specs,docs,insights}/**/*.md'],
+      commit: 'b'.repeat(40),
+      scanned_at: '2026-11-03T10:00:00.000Z',
+      total: 1,
+      budget_tokens: 20000,
+      docs: [{ path: 'specs/a.md', type: 'specs', size: 120, tokens: 30, used_by: 2 }],
+    });
+    expect(list.docs[0]!.type).toBe('specs');
+    expect(
+      ProjectContextList.safeParse({ ...list, status: 'broken' }).success,
+    ).toBe(false);
   });
 });

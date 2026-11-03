@@ -15,6 +15,7 @@ import { ToolCallRow } from "../ToolCallRow";
 import { PromptBlock } from "../PromptBlock";
 import { FindingsSection } from "../FindingsSection";
 import { SkillsApplied } from "../SkillsApplied";
+import { SpecsRead } from "../SpecsRead";
 import { Row, Stat } from "../atoms";
 
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
@@ -38,17 +39,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
             <span>{t("trace.config.items", { count: trace.memory_pulled.length })}</span>
           </Row>
           <Row label={t("trace.config.specsRead")}>
-            <div style={s.specsWrap}>
-              {trace.specs_read.length === 0 ? (
-                <span style={s.specsNone}>{t("trace.config.none")}</span>
-              ) : (
-                trace.specs_read.map((sp, i) => (
-                  <span key={i} className="mono" style={s.spec}>
-                    {sp}
-                  </span>
-                ))
-              )}
-            </div>
+            <SpecsRead trace={trace} />
           </Row>
         </div>
       </TraceSection>

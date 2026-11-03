@@ -136,6 +136,24 @@ export class SkillsRepository {
     });
   }
 
+  /**
+   * Replace the attached project-context paths. A plain workspace-scoped UPDATE:
+   * attachments are not part of a version, so no version bump, no `skill_versions`
+   * row and `updated_at` is left alone.
+   */
+  async setContextPaths(
+    workspaceId: string,
+    id: string,
+    paths: string[],
+  ): Promise<SkillRow | undefined> {
+    const [row] = await this.db
+      .update(t.skills)
+      .set({ contextPaths: paths })
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+      .returning();
+    return row;
+  }
+
   /** Delete a skill (links, versions and run_skills cascade). */
   async deleteById(workspaceId: string, id: string): Promise<boolean> {
     const rows = await this.db

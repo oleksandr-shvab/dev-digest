@@ -1,0 +1,35 @@
+{
+  "name": "Project Context page: list the repo's docs, filter, read one, rescan",
+  "description": "Deterministic (no model call) walk through the read-only Project Context page on the seeded demo repo acme/payments-api. Opens it from the sidebar; the six fixture docs (e2e/fixtures/payments-api-mirror, committed into a git mirror by scripts/e2e-fixture-mirror.sh) are listed with their type and '≈ N tokens'; a filter that matches nothing shows the empty-filter note and a narrowing filter keeps one doc; the selected doc 'specs/security-baseline.md' renders as Markdown next to 'Used by N agents'; Rescan refetches and the footer reads 'N files · ≈ T tokens total · scanned … ago'. That the page has no edit/new/upload/delete control is asserted by ContextView.test.tsx, not here: agent-browser has no 'is absent' wait. Assumes a freshly-seeded DB and the fixture mirror (hermetic runner / e2e-web.yml set DEVDIGEST_CLONE_DIR); reads only, so it can run in any order.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "root redirects to the demo repo's PR list" },
+    { "cmd": ["find", "text", "Project Context", "click"], "label": "open Project Context from the WORKSPACE sidebar group" },
+    { "cmd": ["wait", "--url", "/context"], "label": "project context route reached" },
+    { "cmd": ["wait", "--text", "Markdown docs of this repo that agents and skills can attach. Read-only."], "label": "page header explains it is read-only" },
+
+    { "cmd": ["wait", "--text", "specs/public-api.md"], "label": "specs/public-api.md is listed" },
+    { "cmd": ["wait", "--text", "specs/security-baseline.md"], "label": "specs/security-baseline.md is listed" },
+    { "cmd": ["wait", "--text", "docs/onboarding-flow.md"], "label": "docs/onboarding-flow.md is listed" },
+    { "cmd": ["wait", "--text", "docs/webhooks.md"], "label": "docs/webhooks.md is listed" },
+    { "cmd": ["wait", "--text", "docs/data-retention.md"], "label": "docs/data-retention.md is listed" },
+    { "cmd": ["wait", "--text", "insights/rate-limiting.md"], "label": "insights/rate-limiting.md is listed" },
+    { "cmd": ["wait", "--text", "≈"], "label": "rows carry a token estimate" },
+    { "cmd": ["wait", "--text", "6 files"], "label": "footer counts the six fixture docs" },
+
+    { "cmd": ["find", "text", "specs/security-baseline.md", "click"], "label": "select specs/security-baseline.md" },
+    { "cmd": ["wait", "--text", "Card numbers are never written to logs."], "label": "the doc body is rendered" },
+    { "cmd": ["wait", "--text", "Used by"], "label": "the doc shows how many agents use it" },
+
+    { "cmd": ["find", "label", "Filter by path…", "fill", "zzz-no-such-doc"], "label": "filter on a path nothing matches" },
+    { "cmd": ["wait", "--text", "No documents match the filter."], "label": "empty-filter note shows" },
+    { "cmd": ["find", "label", "Filter by path…", "fill", "webhooks"], "label": "narrow the filter to one doc" },
+    { "cmd": ["wait", "--text", "docs/webhooks.md"], "label": "the matching doc is still listed" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Rescan"], "label": "rescan the repo's docs" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the refetch settles" },
+    { "cmd": ["wait", "--text", "6 files"], "label": "footer still counts six files" },
+    { "cmd": ["wait", "--text", "tokens total"], "label": "footer shows the token total" },
+    { "cmd": ["wait", "--text", "scanned"], "label": "footer shows when the docs were scanned" }
+  ]
+}

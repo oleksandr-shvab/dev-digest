@@ -1,0 +1,31 @@
+{
+  "name": "Run trace drawer: project context docs with status, and the untrusted block",
+  "description": "Deterministic (no model call) walk through the seeded Security Reviewer run on PR #482. Opens the Agent runs tab and the run's trace drawer; the Configuration section's 'Specs read' lists the three docs seed.ts stores in the trace with their status words as plain text ('included', 'skipped_budget', 'missing'); expanding Prompt assembly and the 'Project context — attached specs (untrusted)' entry shows the stored <untrusted source=\"specs/security-baseline.md\"> block. The three seeded runs share one 'Open run trace & logs' button label, so the flow takes the last one in the timeline: runs are listed newest first and seed.ts inserts the Security Reviewer run first (oldest); the drawer title is asserted so a different order fails loudly instead of checking the wrong run. Read-only. Assumes a freshly-seeded DB (hermetic runner / e2e-web.yml).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "switch to the Agent runs tab" },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
+    { "cmd": ["wait", "--text", "request changes"], "label": "seeded run history is loaded" },
+
+    { "cmd": ["find", "last", "button[aria-label=\"Open run trace & logs\"]", "click"], "label": "open the trace of the oldest run (the Security Reviewer run)" },
+    { "cmd": ["wait", "--url", "trace="], "label": "trace drawer is in the URL" },
+    { "cmd": ["wait", "--text", "Agent run · Security Reviewer"], "label": "the drawer is the Security Reviewer's" },
+    { "cmd": ["wait", "--text", "Specs read"], "label": "Configuration lists Specs read" },
+    { "cmd": ["wait", "--text", "specs/security-baseline.md"], "label": "the included doc is listed" },
+    { "cmd": ["wait", "--text", "docs/data-retention.md"], "label": "the over-budget doc is listed" },
+    { "cmd": ["wait", "--text", "specs/removed-doc.md"], "label": "the missing doc is listed" },
+    { "cmd": ["wait", "--text", "included"], "label": "status word 'included' is shown as text" },
+    { "cmd": ["wait", "--text", "skipped_budget"], "label": "status word 'skipped_budget' is shown as text" },
+    { "cmd": ["wait", "--text", "missing"], "label": "status word 'missing' is shown as text" },
+    { "cmd": ["wait", "--text", "commit a1b2c3d"], "label": "the short commit is shown" },
+
+    { "cmd": ["find", "text", "Prompt assembly", "click"], "label": "expand the Prompt assembly section" },
+    { "cmd": ["wait", "--text", "Project context — attached specs (untrusted)"], "label": "the project context entry is labelled untrusted" },
+    { "cmd": ["find", "text", "Project context — attached specs (untrusted)", "click"], "label": "expand the project context entry" },
+    { "cmd": ["wait", "--text", "<untrusted source=\"specs/security-baseline.md\">"], "label": "the stored untrusted block for the included doc is shown" }
+  ]
+}

@@ -7,10 +7,11 @@ export interface DetailTab {
   icon: IconName;
 }
 
-/** Detail tabs (Config · Preview · Evals · Stats · Versions). The active one lives in ?tab=. */
+/** Detail tabs (Config · Preview · Context · Evals · Stats · Versions). The active one lives in ?tab=. */
 export const TABS: readonly DetailTab[] = [
   { key: "config", labelKey: "config", icon: "Settings" },
   { key: "preview", labelKey: "preview", icon: "Eye" },
+  { key: "context", labelKey: "context", icon: "FileText" },
   { key: "evals", labelKey: "evals", icon: "FlaskConical" },
   { key: "stats", labelKey: "stats", icon: "BarChart" },
   { key: "versions", labelKey: "versions", icon: "History" },

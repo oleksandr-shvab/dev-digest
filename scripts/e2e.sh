@@ -54,6 +54,7 @@ command -v agent-browser >/dev/null || \
 # --- teardown trap (installed before we start anything) ----------------------
 SERVER_PID=""
 WEB_PID=""
+CLONE_DIR=""
 # Recursively kill a process and all its descendants. `pnpm exec tsx` / `next dev`
 # spawn the real listener as a GRANDCHILD, so a plain `kill $PID` + `pkill -P`
 # leaves it orphaned (port stays bound). Walk the tree leaves-first instead.
@@ -77,6 +78,8 @@ cleanup() {
     [ -n "$pids" ] && kill $pids 2>/dev/null || true
   done
   docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  # The fixture mirror lives in a mktemp dir this script created — nothing else.
+  [ -n "$CLONE_DIR" ] && rm -rf "$CLONE_DIR"
   exit "$code"
 }
 trap cleanup EXIT INT TERM
@@ -126,6 +129,18 @@ log "applying migrations (isolated db)"
 (cd server && pnpm db:migrate)
 log "seeding demo data (isolated db)"
 (cd server && pnpm db:seed)
+
+# --- fixture git mirror of the demo repo (Project Context docs) --------------
+# The seeded repo has no clone on disk, so the Project Context flows read their
+# docs from a throwaway git repo at <clone dir>/acme/payments-api. The API is
+# pointed at it with DEVDIGEST_CLONE_DIR (dotenv never overrides an already-set
+# env). The budget is small on purpose: docs/data-retention.md alone exceeds it,
+# so the over-budget path is reachable. Same two values as e2e-web.yml.
+CLONE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/devdigest-e2e-clones.XXXXXX")"
+log "creating the fixture mirror in $CLONE_DIR"
+bash "$ROOT/scripts/e2e-fixture-mirror.sh" "$CLONE_DIR"
+export DEVDIGEST_CLONE_DIR="$CLONE_DIR"
+export PROJECT_CONTEXT_BUDGET_TOKENS=400
 
 # --- API on :$API_PORT -------------------------------------------------------
 # tsx directly (not `pnpm start`, which needs a build; not `tsx watch`, to avoid

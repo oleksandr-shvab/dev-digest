@@ -1,0 +1,11 @@
+{
+  "name": "devdigest/run-plan",
+  "version": "0.1.0",
+  "private": true,
+  "summary": "Runs an approved Development Plan autonomously: implementers by the plan's dependency graph and owned paths, then architecture-reviewer and plan-verifier in parallel, then a bounded fix loop, then a report and a /pr-self-review recommendation. Spec, plan and test-writer are run separately. Usage: /run-plan plan:plans/<slug>.md [mode:single|multi] [max-fix:N].",
+  "skills": {
+    "run-plan": {
+      "path": "SKILL.md"
+    }
+  }
+}

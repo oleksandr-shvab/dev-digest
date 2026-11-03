@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy, SetAgentSkillsInput } from '@devdigest/shared';
+import {
+  CiFailOn,
+  Provider,
+  ReviewStrategy,
+  SetAgentSkillsInput,
+  SetContextPathsInput,
+} from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -26,6 +32,7 @@ const VersionParams = z.object({
  *   GET    /agents/:id/versions/:version → one config snapshot
  *   GET    /agents/:id/skills       → linked skills (ordered) as AgentSkill[]
  *   PUT    /agents/:id/skills       → replace the ordered set (transactional, bumps version)
+ *   PUT    /agents/:id/context      → replace attached project-context paths (no version bump)
  *   POST   /agents/:id/skills       → legacy: set/reorder linked skills OR link one
  *   GET    /agents/:id/models       → dynamic model list for the agent's provider
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
@@ -158,6 +165,17 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
       const skills = await service.setAgentSkills(workspaceId, req.params.id, req.body.items);
       if (!skills) throw new NotFoundError('Agent not found');
       return skills;
+    },
+  );
+
+  app.put(
+    '/agents/:id/context',
+    { schema: { params: IdParams, body: SetContextPathsInput } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const agent = await service.setContextPaths(workspaceId, req.params.id, req.body.paths);
+      if (!agent) throw new NotFoundError('Agent not found');
+      return agent;
     },
   );
 

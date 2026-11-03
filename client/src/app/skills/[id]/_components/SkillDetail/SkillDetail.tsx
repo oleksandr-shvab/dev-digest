@@ -1,5 +1,5 @@
 /* SkillDetail — right pane of /skills: header (type icon, name, chips, run-on-evals,
-   ⋯ menu) and the Config · Preview · Evals · Stats · Versions tabs. */
+   ⋯ menu) and the Config · Preview · Context · Evals · Stats · Versions tabs. */
 "use client";
 
 import React from "react";
@@ -11,6 +11,7 @@ import { useDeleteSkill, useSkill, useSkillVersions } from "@/lib/hooks/skills";
 import { SKILL_TYPE_STYLE } from "@/lib/skill-meta";
 import { useToast } from "@/lib/toast";
 import { ConfigTab } from "./_components/ConfigTab";
+import { ContextTab } from "./_components/ContextTab";
 import { EvalsTab } from "./_components/EvalsTab";
 import { PreviewTab } from "./_components/PreviewTab";
 import { StatsTab } from "./_components/StatsTab";
@@ -133,6 +134,7 @@ export function SkillDetail({
           />
         </div>
         {tab === "preview" && <PreviewTab skill={skill} hasUnsavedEdits={dirty} />}
+        {tab === "context" && <ContextTab skill={skill} />}
         {tab === "evals" && <EvalsTab />}
         {tab === "stats" && <StatsTab skillId={skill.id} />}
         {tab === "versions" && <VersionsTab skill={skill} />}

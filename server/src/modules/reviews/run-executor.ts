@@ -16,6 +16,10 @@ import { loadDiff } from './diff-loader.js';
 import { emitPromptLog } from './prompt-log.js';
 import type { IntentDeriver } from './intent-deriver.js';
 import { activeSkillLinks, formatSkillBlock, skillsLogLines } from '../skills/helpers.js';
+import { orderAttachedPaths, type CollectedDoc } from '../project-context/helpers.js';
+
+/** Where a run was started: the studio ('local') or a CI runner ('ci'). */
+export type RunSource = 'local' | 'ci';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -65,7 +69,7 @@ export class ReviewRunExecutor {
     workspaceId: string,
     pull: PullRow,
     repo: typeof schema.repos.$inferSelect,
-    jobs: { agent: AgentRow; runId: string }[],
+    jobs: { agent: AgentRow; runId: string; source?: RunSource }[],
     logger?: Logger,
   ): Promise<void> {
     // ONE logger fanned out over every queued run: shared pre-work (diff +
@@ -116,7 +120,7 @@ export class ReviewRunExecutor {
     // Shared pre-work: the PR intent (stored, else derived once). Never fails the run.
     const intent = await this.loadOrDeriveIntent(workspaceId, pull, repo, diff, runLog);
 
-    for (const { agent, runId } of jobs) {
+    for (const { agent, runId, source = 'local' } of jobs) {
       const agentStart = Date.now();
       logger?.info(
         { runId, agent: agent.name, provider: agent.provider, model: agent.model, prId: pull.id },
@@ -132,6 +136,7 @@ export class ReviewRunExecutor {
           runId,
           runLog,
           intent,
+          source,
         );
         logger?.info(
           {
@@ -209,6 +214,7 @@ export class ReviewRunExecutor {
     runId: string,
     parentLog: RunLogger,
     intent: ReviewIntent | undefined,
+    source: RunSource,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -266,6 +272,39 @@ export class ReviewRunExecutor {
       }));
       for (const line of skillsLogLines(skillsApplied)) runLog.info(line);
 
+      // Project context: docs attached to the agent and to its active skills,
+      // read from the synced mirror at ONE commit and fitted to the token budget.
+      // Collection never throws and adds no LLM call. CI runs never use it.
+      const attachedPaths =
+        source === 'ci'
+          ? []
+          : orderAttachedPaths(
+              agent.contextPaths,
+              skillLinks.map((l) => l.skill.contextPaths),
+            );
+      let projectContextCommit: string | null = null;
+      let projectContextDocs: CollectedDoc[] = [];
+      if (source === 'ci') {
+        runLog.info('Project context is not used in CI runs — skipped');
+      } else if (attachedPaths.length > 0) {
+        const collected = await this.container.projectContext.collectForRun({
+          repo,
+          paths: attachedPaths,
+        });
+        projectContextCommit = collected.commit;
+        projectContextDocs = collected.docs;
+        const included = projectContextDocs.filter((d) => d.status === 'included');
+        const count = (status: CollectedDoc['status']) =>
+          projectContextDocs.filter((d) => d.status === status).length;
+        runLog.info(
+          `Project context: ${included.length} included (${included.reduce((n, d) => n + d.tokens, 0)} tokens), ` +
+            `${count('skipped_budget')} skipped over budget, ${count('missing')} missing`,
+        );
+      }
+      const projectSpecs = projectContextDocs.flatMap((d) =>
+        d.status === 'included' && d.text !== undefined ? [{ path: d.path, text: d.text }] : [],
+      );
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -285,6 +324,8 @@ export class ReviewRunExecutor {
         ...(repoMap ? { repoMap } : {}),
         // Linked skills, one block each; omitted when none are active.
         ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
+        // Attached project docs, one untrusted block each; omitted when none were included.
+        ...(projectSpecs.length > 0 ? { specs: projectSpecs } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -386,7 +427,7 @@ export class ReviewRunExecutor {
           provider: agent.provider,
           model: agent.model,
           pr: pull.number,
-          source: 'local',
+          source,
         },
         stats: {
           duration_ms: durationMs,
@@ -405,7 +446,15 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: projectSpecs.map((d) => d.path),
+        ...(attachedPaths.length > 0
+          ? {
+              project_context: {
+                commit: projectContextCommit,
+                docs: projectContextDocs.map(({ path, tokens, status }) => ({ path, tokens, status })),
+              },
+            }
+          : {}),
         ...(skillsApplied.length > 0 ? { skills_applied: skillsApplied } : {}),
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.

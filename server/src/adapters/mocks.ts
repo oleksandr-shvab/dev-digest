@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { z } from 'zod';
 import type {
   LLMProvider,
@@ -23,6 +24,7 @@ import type {
   UnifiedDiff,
   BlameLine,
   GitCommit,
+  GitTreeEntry,
   CodeIndex,
   CodeMatch,
   CodeSymbol,
@@ -262,7 +264,9 @@ export class MockGitHubClient implements GitHubClient {
 // ---------- Mock Git ----------
 export interface MockGitOptions {
   diff?: string;
-  files?: Record<string, string>;
+  files?: Record<string, string | Buffer>;
+  /** Paths listed as symlinks (mode 120000) by `listTree`. */
+  symlinks?: string[];
   /** Name-only diff result (drives the incremental indexer's "changed files since X" path). */
   diffNameOnly?: string[];
   /** Override `currentHead()` so tests can simulate "sha unchanged since last index". */
@@ -311,8 +315,32 @@ export class MockGitClient implements GitClient {
     return [{ sha: 'a1b2c3d4', message: 'init', author: 'marisa.koch', date: '2026-06-01' }];
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
-    return this.opts.files?.[path] ?? '';
+    const f = this.opts.files?.[path];
+    return f === undefined ? '' : f.toString();
   }
+  async listTree(): Promise<GitTreeEntry[]> {
+    const entries: GitTreeEntry[] = [];
+    for (const [path, content] of Object.entries(this.opts.files ?? {})) {
+      entries.push({ path, mode: '100644', blob: mockBlobId(path), size: Buffer.byteLength(content) });
+    }
+    for (const path of this.opts.symlinks ?? []) {
+      entries.push({ path, mode: '120000', blob: mockBlobId(path), size: path.length });
+    }
+    return entries;
+  }
+  async readBlobs(_repo: RepoRef, blobs: string[]): Promise<Map<string, Buffer | null>> {
+    const byId = new Map<string, Buffer>();
+    for (const [path, content] of Object.entries(this.opts.files ?? {})) {
+      byId.set(mockBlobId(path), Buffer.from(content));
+    }
+    for (const path of this.opts.symlinks ?? []) byId.set(mockBlobId(path), Buffer.from(path));
+    return new Map(blobs.map((id) => [id, byId.get(id) ?? null]));
+  }
+}
+
+/** Synthetic, stable 40-hex blob id per path (the mock has no real objects). */
+function mockBlobId(path: string): string {
+  return createHash('sha1').update(`mock-blob:${path}`).digest('hex');
 }
 
 // ---------- Mock CodeIndex ----------

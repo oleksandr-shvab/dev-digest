@@ -7,6 +7,7 @@
  *  - contracts/knowledge  Conformance, Onboarding, EvalRun/EvalCase, MemoryItem,
  *                         Skill/CommunitySkill, ConventionCandidate, Agent
  *  - contracts/trace      RunTrace, RunEvent, RunLogLine (single-document trace)
+ *  - contracts/project-context  attached Markdown docs: AttachmentPath, ProjectContextList, …
  *  - contracts/platform   Settings, ConnTestResult, Repo, PrMeta/PrDetail, SpecFile, …
  *  - adapters             adapter interfaces + ModelInfo
  *
@@ -24,4 +25,5 @@ export * from './contracts/why.js';
 export * from './contracts/eval-ci.js';
 export * from './contracts/observability.js';
 export * from './contracts/productionize.js';
+export * from './contracts/project-context.js';
 export * from './adapters.js';

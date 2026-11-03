@@ -19,6 +19,7 @@ export function toSkillDto(row: SkillRow, stats?: SkillStatsSummary): Skill {
     enabled: row.enabled,
     version: row.version,
     evidence_files: row.evidenceFiles ?? null,
+    context_paths: row.contextPaths,
     updated_at: row.updatedAt.toISOString(),
     ...(stats ? { stats } : {}),
   };

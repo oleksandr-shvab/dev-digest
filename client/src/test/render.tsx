@@ -8,6 +8,7 @@ import runs from "../../messages/en/runs.json";
 import conventions from "../../messages/en/conventions.json";
 import brief from "../../messages/en/brief.json";
 import blast from "../../messages/en/blast.json";
+import context from "../../messages/en/context.json";
 import { ToastProvider } from "@/lib/toast";
 
 /** A QueryClient that never retries or caches across tests. */
@@ -20,7 +21,7 @@ export function makeQueryClient() {
 export function renderWithProviders(ui: React.ReactElement, qc: QueryClient = makeQueryClient()): RenderResult {
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ skills, agents, runs, conventions, brief, blast }}>
+      <NextIntlClientProvider locale="en" messages={{ skills, agents, runs, conventions, brief, blast, context }}>
         <ToastProvider>{children}</ToastProvider>
       </NextIntlClientProvider>
     </QueryClientProvider>
@@ -39,6 +40,7 @@ export function makeSkill(over: Partial<import("@devdigest/shared").Skill> = {})
     body: "# Rule\nCheck every branch.",
     enabled: true,
     version: 1,
+    context_paths: [],
     ...over,
   };
 }
@@ -57,6 +59,7 @@ export function makeAgent(over: Partial<import("@devdigest/shared").Agent> = {})
     strategy: "single-pass",
     ci_fail_on: "critical",
     repo_intel: true,
+    context_paths: [],
     ...over,
   };
 }

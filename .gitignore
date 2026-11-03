@@ -28,3 +28,6 @@ test-results/
 # Only the team-shared suppressions file is committed.
 .claude/pr-self-review/*
 !.claude/pr-self-review/suppressions.json
+
+# /run-plan state (resume logs)
+.claude/run-plan-logs/

@@ -18,6 +18,9 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
+| [spec-creator](spec-creator/SKILL.md) | Meta | `/spec-creator`: feature-spec with traced, prioritized EARS criteria in the touched module's `specs/` (root `specs/` when cross-module); analyzes designs, runs parallel researchers, self-checks with `scripts/check-spec.mjs`, approves on confirmation |
+| [run-plan](run-plan/SKILL.md) | Meta | `/run-plan plan:<path> [mode:single] [max-fix:N]`: runs an approved plan autonomously — implementers by the plan's dependency graph and owned paths → architecture-reviewer ‖ plan-verifier → bounded fix loop → report and a `/pr-self-review` recommendation; never pushes. Spec, plan and test-writer are run by hand |
+| [analyze-workflow](analyze-workflow/SKILL.md) | Meta | `/analyze-workflow [deep] [session:<id>] [since:<ISO>]` — manual only: retro of a finished multi-agent run (order/parallelism, where the work went, hard/easy, duplicated, missed) with before → after proposals for agents and skills; default reads this conversation, `deep` reads the transcripts via `scripts/collect.mjs` for exact tokens; full report in chat, one entry appended to `docs/retro/ledger.md`, which also holds module insight candidates |
 | [engineering-insights](engineering-insights/SKILL.md) | Meta | Capture session learnings into the touched module's `insights.md` |
 | [pr-self-review](pr-self-review/SKILL.md) | Meta | Pre-PR gate: routes the local diff to the skills above by file type, blocks the PR on any confirmed CRITICAL finding |
 

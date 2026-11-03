@@ -1,0 +1,42 @@
+{
+  "name": "Agent Context tab: attach docs, reorder, persist, budget warning, detach",
+  "description": "Deterministic (no model call) walk through the Context tab of the seeded Security Reviewer on acme/payments-api. Ticks specs/public-api.md and specs/security-baseline.md (each saves at once; badge reads '2 of 6 attached'), keyboard-reorders them, leaves and comes back to confirm the attachments persisted, then ticks docs/data-retention.md, which alone exceeds the e2e budget of 400 tokens (PROJECT_CONTEXT_BUDGET_TOKENS, set by scripts/e2e.sh and e2e-web.yml), so the budget warning names it. Unticks all three at the end so the flow can run again. Attachments do not create agent versions. The reorder is exercised but its resulting order is not asserted: agent-browser has no ordered-text wait (the order is asserted by ContextDocPicker.test.tsx and the server integration test). Assumes a freshly-seeded DB and the fixture mirror; flow 08 only touches Test Quality Reviewer, so the order of flows does not matter.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "open the agents list" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "open Security Reviewer" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor route reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Context"], "label": "switch to the agent's Context tab" },
+    { "cmd": ["wait", "--url", "tab=context"], "label": "context tab is in the URL" },
+    { "cmd": ["wait", "--text", "0 of 6 attached"], "label": "the six fixture docs are available and none is attached" },
+
+    { "cmd": ["find", "role", "checkbox", "click", "--name", "Attach specs/public-api.md"], "label": "attach specs/public-api.md" },
+    { "cmd": ["wait", "--text", "1 of 6 attached"], "label": "badge follows the first tick (saved immediately)" },
+    { "cmd": ["find", "role", "checkbox", "click", "--name", "Attach specs/security-baseline.md"], "label": "attach specs/security-baseline.md" },
+    { "cmd": ["wait", "--text", "2 of 6 attached"], "label": "badge follows the second tick" },
+    { "cmd": ["wait", "--text", "tokens · Injected as an untrusted block"], "label": "footer shows the token total and the untrusted-block note" },
+
+    { "cmd": ["find", "role", "button", "focus", "--name", "Reorder specs/security-baseline.md"], "label": "focus the drag handle" },
+    { "cmd": ["press", "Space"], "label": "pick the row up (keyboard)" },
+    { "cmd": ["press", "ArrowUp"], "label": "move it up one place" },
+    { "cmd": ["press", "Space"], "label": "drop it" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the immediate PUT settles" },
+
+    { "cmd": ["open", "{BASE}/agents"], "label": "leave and come back to check persistence" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "reopen Security Reviewer" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Context"], "label": "open the Context tab again" },
+    { "cmd": ["wait", "--text", "2 of 6 attached"], "label": "both attachments were persisted" },
+
+    { "cmd": ["find", "role", "checkbox", "click", "--name", "Attach docs/data-retention.md"], "label": "attach the long doc" },
+    { "cmd": ["wait", "--text", "3 of 6 attached"], "label": "badge follows the third tick" },
+    { "cmd": ["wait", "--text", "exceed the per-run budget of 400 tokens"], "label": "budget warning names the budget" },
+    { "cmd": ["wait", "--text", "These docs will be skipped: docs/data-retention.md"], "label": "budget warning names the skipped doc" },
+
+    { "cmd": ["find", "role", "checkbox", "click", "--name", "Attach docs/data-retention.md"], "label": "detach the long doc" },
+    { "cmd": ["wait", "--text", "2 of 6 attached"], "label": "badge follows the untick" },
+    { "cmd": ["find", "role", "checkbox", "click", "--name", "Attach specs/public-api.md"], "label": "detach specs/public-api.md" },
+    { "cmd": ["wait", "--text", "1 of 6 attached"], "label": "badge follows the untick" },
+    { "cmd": ["find", "role", "checkbox", "click", "--name", "Attach specs/security-baseline.md"], "label": "detach specs/security-baseline.md" },
+    { "cmd": ["wait", "--text", "0 of 6 attached"], "label": "back to the seeded state so the flow can run again" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "the last PUT settles" }
+  ]
+}

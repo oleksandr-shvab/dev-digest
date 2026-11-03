@@ -1,24 +1,76 @@
 {
   "title": "Project Context",
-  "chunks": "{count} chunks",
-  "reindex": "Re-index",
-  "indexing": "Indexing…",
-  "resync": "Resync",
-  "resyncing": "Resyncing…",
-  "indexStatus": "Index status: {status}",
-  "loadError": "Couldn’t load specs",
-  "kb": "{kb}kb",
-  "empty": {
-    "title": "No spec files yet",
-    "body": "Drop your PRDs, tech specs, and acceptance criteria under .devdigest/specs/. Every agent and the PR brief read them as grounding context."
+  "picker": {
+    "filterPlaceholder": "Filter documents…",
+    "noRepo": "Select a repo to see its docs",
+    "loadError": "Couldn’t load the docs of this repo.",
+    "noDocs": "No Markdown docs found in {repo}.",
+    "noMatch": "No documents match the filter.",
+    "notFound": "Not found in {repo}",
+    "tokens": "≈ {count} tokens",
+    "viaSkill": "via {skill}",
+    "preview": "Preview",
+    "previewLabel": "Preview {path}",
+    "attachLabel": "Attach {path}",
+    "reorderLabel": "Reorder {path}",
+    "saving": "Saving…",
+    "saveError": "Couldn’t save the attached docs. The change was reverted.",
+    "previewLoading": "Loading…",
+    "previewError": "Couldn’t load this document.",
+    "type": {
+      "specs": "specs",
+      "docs": "docs",
+      "insights": "insights"
+    }
   },
-  "mode": {
-    "preview": "preview",
-    "edit": "edit"
+  "agent": {
+    "title": "Project context",
+    "helper": "Order matters — earlier docs appear earlier in the assembled ## Project context block. Toggle to attach.",
+    "badge": "{count} of {total} attached",
+    "footer": "≈ {tokens} tokens · Injected as an untrusted block (## Project context) into every run.",
+    "budgetWarning": "The attached docs exceed the per-run budget of {budget} tokens. These docs will be skipped: {docs}"
   },
-  "editor": {
-    "loadError": "Couldn’t load spec",
-    "save": "Save",
-    "saving": "Saving…"
+  "skill": {
+    "title": "Project context to use",
+    "helper": "Any agent using this skill inherits these documents.",
+    "badge": "{count} attached",
+    "serializesAs": "Serializes as"
+  },
+  "page": {
+    "crumbWorkspace": "Workspace",
+    "crumbContext": "Project Context",
+    "heading": "Project Context",
+    "repoLine": "{repo} · {branch}",
+    "subtitle": "Markdown docs of this repo that agents and skills can attach. Read-only.",
+    "filterPlaceholder": "Filter by path…",
+    "rescan": "Rescan",
+    "rescanning": "Scanning…",
+    "loadError": "Couldn’t load the project docs.",
+    "noRepo": "Select a repo to see its docs",
+    "docsLabel": "Documents",
+    "selectDoc": "Select a document to read it.",
+    "noMatch": "No documents match the filter.",
+    "usedBy": "{count, plural, one {Used by # agent} other {Used by # agents}}",
+    "docLoading": "Loading…",
+    "docError": "Couldn’t load this document.",
+    "capped": "Showing {shown, number} of {total, number} docs — narrow the filter or the search roots",
+    "footer": "{files, plural, one {# file} other {# files}} · ≈ {tokens} tokens total · scanned {ago} ago",
+    "ago": {
+      "seconds": "{n}s",
+      "minutes": "{n}m",
+      "hours": "{n}h",
+      "days": "{n}d"
+    },
+    "empty": {
+      "no_mirror": {
+        "title": "No synced copy of this repo yet",
+        "body": "The repo has no synced mirror, so there are no docs to list. Sync the repo, then rescan."
+      },
+      "no_matches": {
+        "title": "No documents match the search globs",
+        "body": "No Markdown file in this repo matches the search globs in use."
+      },
+      "globs": "Search globs: {globs}"
+    }
   }
 }

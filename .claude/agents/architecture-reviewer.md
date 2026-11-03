@@ -2,7 +2,7 @@
 name: architecture-reviewer
 description: "Read-only reviewer of architectural boundaries - dependency direction in server/ and reviewer-core/ (onion-architecture), code placement and the server/client component boundary in client/ (frontend-ui-architecture, next-best-practices), and the cross-package rules in CLAUDE.md. Returns findings with file, line, the quoted code and the quoted rule, separates what a change introduced from what was already there, and lists every check that did not run. Use after an implementation and before /pr-self-review. Pass a plan path, a list of changed files, or a directory; it has no Write, Edit or Bash, and does not review style, security, performance or tests."
 tools: Read, Grep, Glob
-model: opus
+model: sonnet
 skills:
   - onion-architecture
   - frontend-ui-architecture
@@ -45,6 +45,11 @@ Accepted inputs, in this order of preference:
 2. A plan path — the scope is every path under the steps' `Files`. Also
    read the plan's `## For reviewers`.
 3. A list of files, or a directory.
+
+Any of these may come with `Rejected findings` — keys of earlier findings
+(`<rule id>` + file) that the user ruled false positives. Do not report a
+finding with a rejected key unless the cited lines changed since; list
+each one you skipped under `Not checked`.
 
 If none of these is usable, do no review. Return only this:
 
