@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   Review,
@@ -7,6 +8,9 @@ import {
   BlastDegradedReason,
   Risks,
   PrHistory,
+  PrBrief,
+  PrBriefState,
+  ReviewFocusItem,
   SmartDiff,
   SmartDiffRole,
   Conformance,
@@ -122,6 +126,71 @@ describe('AI contracts parse fixtures', () => {
         ],
       }),
     ).not.toThrow();
+  });
+
+  it('PrBrief / PrBriefState', () => {
+    const brief = {
+      summary: 'Adds rate limiting to the public API.',
+      risks: [
+        {
+          kind: 'security',
+          title: 'Auth bypass',
+          explanation: 'The limiter runs after auth.',
+          severity: 'high',
+          file_refs: ['src/limiter.ts'],
+        },
+      ],
+      review_focus: [{ file: 'src/limiter.ts', line: null, reason: 'Core change' }],
+    };
+    expect(PrBrief.parse(brief).review_focus[0]!.line).toBeNull();
+    expect(() => PrBriefState.parse({
+      pr_id: 'p1',
+      brief,
+      head_sha: 'a1b2c3d4e5f6',
+      generated_at: '2026-11-10T10:00:00.000Z',
+      stale: false,
+      provider: 'openai',
+      model: 'gpt-4.1',
+      tokens_in: 100,
+      tokens_out: 50,
+      cost_usd: null,
+      unavailable_inputs: [{ kind: 'linked_issue', ref: null }],
+      omitted_inputs: [{ kind: 'caller_files', ref: null, kept: 10, total: 40 }],
+      generating: false,
+      last_error: null,
+    })).not.toThrow();
+    expect(
+      PrBriefState.parse({
+        pr_id: 'p1',
+        brief: null,
+        head_sha: null,
+        generated_at: null,
+        stale: false,
+        provider: null,
+        model: null,
+        tokens_in: null,
+        tokens_out: null,
+        cost_usd: null,
+        unavailable_inputs: [],
+        omitted_inputs: [],
+        generating: true,
+        last_error: null,
+      }).brief,
+    ).toBeNull();
+    expect(() => ReviewFocusItem.parse({ file: 'a.ts', line: null })).toThrow();
+    expect(() => ReviewFocusItem.parse({ file: 'a.ts', reason: 'r' })).toThrow();
+  });
+
+  it('brief contract is identical on server and client (AC-40)', () => {
+    const server = readFileSync(
+      new URL('../src/vendor/shared/contracts/brief.ts', import.meta.url),
+      'utf8',
+    );
+    const client = readFileSync(
+      new URL('../../client/src/vendor/shared/contracts/brief.ts', import.meta.url),
+      'utf8',
+    );
+    expect(client).toBe(server);
   });
 
   it('SmartDiff (data.jsx DIFF)', () => {

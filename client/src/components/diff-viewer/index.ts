@@ -3,3 +3,5 @@
 export { DiffViewer } from "./DiffViewer";
 export type { DiffCommentApi } from "./comments";
 export type { DiffFindingApi } from "./findings";
+export { focusKey, isFocusedFile } from "./helpers";
+export type { DiffFocus } from "./helpers";

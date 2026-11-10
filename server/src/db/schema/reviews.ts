@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
-import type { IntentSource } from '@devdigest/shared';
+import type { BriefOmittedInput, BriefUnavailableInput, IntentSource } from '@devdigest/shared';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -69,4 +69,14 @@ export const prBrief = pgTable('pr_brief', {
     .primaryKey()
     .references(() => pullRequests.id, { onDelete: 'cascade' }),
   json: jsonb('json').notNull(),
+  /** Head commit the brief was generated for; null means no brief (legacy row). */
+  headSha: text('head_sha'),
+  generatedAt: timestamp('generated_at', { withTimezone: true }),
+  provider: text('provider'),
+  model: text('model'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  costUsd: doublePrecision('cost_usd'),
+  unavailableInputs: jsonb('unavailable_inputs').$type<BriefUnavailableInput[]>(),
+  omittedInputs: jsonb('omitted_inputs').$type<BriefOmittedInput[]>(),
 });

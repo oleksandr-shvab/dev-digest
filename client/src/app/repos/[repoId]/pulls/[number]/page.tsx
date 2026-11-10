@@ -21,6 +21,7 @@ import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } 
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
 import { githubPrUrl } from "../../../../../lib/github-urls";
+import { fileFocusSearch, focusFromSearch, tabSearch } from "./helpers";
 import type { FindingRecord } from "@devdigest/shared";
 
 export default function PRDetailPage() {
@@ -59,13 +60,18 @@ export default function PRDetailPage() {
 
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
+  const replaceSearch = (query: string) =>
+    router.replace(`/repos/${repoId}/pulls/${number}${query ? `?${query}` : ""}`);
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
     if (val == null) sp.delete(key);
     else sp.set(key, val);
-    router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
+    replaceSearch(sp.toString());
   };
-  const setTab = (t: string) => setParam("tab", t);
+  const setTab = (t: string) => replaceSearch(tabSearch(search, t));
+  // The PR Brief opens Files changed on a file (and line); the target stays in the URL until the tab changes.
+  const openFile = (path: string, line: number | null) => replaceSearch(fileFocusSearch(search, path, line));
+  const focus = focusFromSearch(search);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -134,7 +140,17 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab repoId={repoId} prBody={pr.body} prId={prId} repoFullName={repoFullName} headSha={pr.head_sha} />}
+        {tab === "overview" && (
+          <OverviewTab
+            repoId={repoId}
+            prBody={pr.body}
+            prId={prId}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
+            diffPaths={pr.files.map((f) => f.path)}
+            onOpenFile={openFile}
+          />
+        )}
 
         {tab === "findings" && (
           <FindingsTab
@@ -168,6 +184,7 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            focus={focus}
           />
         )}
       </div>

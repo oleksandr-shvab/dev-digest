@@ -7,6 +7,7 @@ import type { PrFile } from "@/lib/types";
 import shell from "../../../../messages/en/shell.json";
 import prReview from "../../../../messages/en/prReview.json";
 import type { DiffFindingApi } from "../findings";
+import type { DiffFocus } from "../helpers";
 import { FileCard } from "./FileCard";
 
 afterEach(cleanup);
@@ -90,3 +91,90 @@ describe("FileCard with review findings", () => {
     expect(screen.queryByRole("img", { name: "Has review findings" })).not.toBeInTheDocument();
   });
 });
+
+// 300 added lines: over AUTO_EXPAND_MAX_LINES, so the card starts collapsed.
+const BIG_FILE: PrFile = {
+  path: "src/big.ts",
+  additions: 300,
+  deletions: 0,
+  patch: ["@@ -0,0 +1,300 @@", ...Array.from({ length: 300 }, (_, i) => `+row ${i + 1}`)].join("\n"),
+};
+
+function renderFocused(focus: DiffFocus | null) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={{ shell, prReview }}>
+      <FileCard file={BIG_FILE} focus={focus} />
+    </NextIntlClientProvider>,
+  );
+}
+
+describe("FileCard focus", () => {
+  it("opens a collapsed file on the focused line, scrolls to it, and still collapses on click", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    renderFocused(null);
+    expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
+    cleanup();
+
+    renderFocused({ path: BIG_FILE.path, line: 3 });
+    const header = screen.getByRole("button", { expanded: true });
+    // the nearest aria-current ancestor of row 3 is its own row; row 4 only has the card itself
+    const row3 = screen.getByText("row 3").closest('[aria-current="location"]')!;
+    expect(row3).toHaveTextContent("row 3");
+    expect(row3).not.toHaveTextContent("row 4");
+    expect(screen.getByText("row 4").closest('[aria-current="location"]')).not.toBe(row3);
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    await user.click(header);
+    expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
+    expect(screen.queryByText("row 3")).not.toBeInTheDocument();
+  });
+});
+
+describe("FileCard focus: once per target", () => {
+  const ui = (focus: DiffFocus | null) => (
+    <NextIntlClientProvider locale="en" messages={{ shell, prReview }}>
+      <FileCard file={BIG_FILE} focus={focus} />
+    </NextIntlClientProvider>
+  );
+
+  it("does not reopen a card the user collapsed while the same target stays, and reopens it for a new line", async () => {
+    const user = userEvent.setup();
+    Element.prototype.scrollIntoView = vi.fn();
+    const view = render(ui({ path: BIG_FILE.path, line: 3 }));
+
+    await user.click(screen.getByRole("button", { expanded: true }));
+    expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
+
+    view.rerender(ui({ path: BIG_FILE.path, line: 3 }));
+    expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
+    expect(screen.queryByText("row 3")).not.toBeInTheDocument();
+
+    view.rerender(ui({ path: BIG_FILE.path, line: 7 }));
+    expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
+    expect(screen.getByText("row 7").closest('[aria-current="location"]')).toHaveTextContent("row 7");
+  });
+
+  it("outlines and scrolls to the card when the focused line is not in the patch (AC-8)", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const { container } = render(ui({ path: BIG_FILE.path, line: 999 }));
+
+    expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    // only the card itself is marked: no row carries the target
+    expect(container.querySelectorAll('[aria-current="location"]')).toHaveLength(1);
+  });
+
+  it("leaves a card for another file closed and unmarked", () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const { container } = render(ui({ path: "src/other.ts", line: 3 }));
+
+    expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
+    expect(container.querySelector('[aria-current="location"]')).toBeNull();
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+  });
+});
+

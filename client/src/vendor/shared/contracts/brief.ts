@@ -146,11 +146,66 @@ export const SmartDiff = z.object({
 });
 export type SmartDiff = z.infer<typeof SmartDiff>;
 
-// ---- Composed PR Brief (pr_brief.json) ----
+// ---- PR Brief (pr_brief.json) ----
+/** One file (and optionally a line) to read first, in reading order. */
+export const ReviewFocusItem = z.object({
+  file: z.string(),
+  line: z.number().int().nullable(),
+  reason: z.string(),
+});
+export type ReviewFocusItem = z.infer<typeof ReviewFocusItem>;
+
 export const PrBrief = z.object({
-  intent: Intent,
-  blast: BlastRadius,
-  risks: Risks,
-  history: PrHistory,
+  summary: z.string(),
+  risks: z.array(Risk),
+  review_focus: z.array(ReviewFocusItem),
 });
 export type PrBrief = z.infer<typeof PrBrief>;
+
+/** Inputs a brief can be generated without. */
+export const BriefInputKind = z.enum(['intent', 'blast_radius', 'linked_issue', 'specs']);
+export type BriefInputKind = z.infer<typeof BriefInputKind>;
+
+export const BriefUnavailableInput = z.object({
+  kind: BriefInputKind,
+  ref: z.string().nullable(),
+});
+export type BriefUnavailableInput = z.infer<typeof BriefUnavailableInput>;
+
+/** What the input-budget fitter left out. */
+export const BriefOmittedKind = z.enum([
+  'spec',
+  'issue_text',
+  'pr_description',
+  'caller_files',
+  'findings',
+  'file_stats',
+]);
+export type BriefOmittedKind = z.infer<typeof BriefOmittedKind>;
+
+export const BriefOmittedInput = z.object({
+  kind: BriefOmittedKind,
+  ref: z.string().nullable(),
+  kept: z.number().int().nullable(),
+  total: z.number().int().nullable(),
+});
+export type BriefOmittedInput = z.infer<typeof BriefOmittedInput>;
+
+/** Transport state of GET/POST /pulls/:id/brief. */
+export const PrBriefState = z.object({
+  pr_id: z.string(),
+  brief: PrBrief.nullable(),
+  head_sha: z.string().nullable(),
+  generated_at: z.string().nullable(),
+  stale: z.boolean(),
+  provider: z.string().nullable(),
+  model: z.string().nullable(),
+  tokens_in: z.number().int().nullable(),
+  tokens_out: z.number().int().nullable(),
+  cost_usd: z.number().nullable(),
+  unavailable_inputs: z.array(BriefUnavailableInput),
+  omitted_inputs: z.array(BriefOmittedInput),
+  generating: z.boolean(),
+  last_error: z.string().nullable(),
+});
+export type PrBriefState = z.infer<typeof PrBriefState>;

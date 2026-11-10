@@ -66,6 +66,13 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  /** Outline on the file card the viewer was told to focus. */
+  fileCardFocused: { outline: "2px solid var(--accent)", outlineOffset: 1 } satisfies CSSProperties,
+  /** The focused line: accent background plus a left bar (not colour alone). */
+  lineFocused: {
+    background: "var(--accent-bg)",
+    boxShadow: "inset 3px 0 0 var(--accent)",
+  } satisfies CSSProperties,
   /** Dot in a file header: the file has review findings. */
   findingDot: {
     width: 8,

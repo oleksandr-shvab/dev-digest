@@ -42,33 +42,28 @@ const DOCUMENT_REASON_DETAIL = {
 
 const NO_TOKEN_DETAIL = 'GitHub token is not configured';
 
-export async function collectIntentSources(
+/**
+ * Fetches the issues a PR references, from the PR's own repository only
+ * (never an owner or name taken from PR text). Each result carries a source
+ * record with a FIXED `detail` on failure. The GitHub client is resolved only
+ * when there is something to fetch.
+ */
+export async function fetchLinkedIssues(
   deps: { github: () => Promise<GitHubClient> },
-  input: { pull: PullInput; repo: RepoRef; diff: UnifiedDiff },
-): Promise<{ materials: IntentMaterials; sources: IntentSource[] }> {
-  const { pull, repo, diff } = input;
-  const description = pull.body ?? '';
-  const prRef = `#${pull.number}`;
-  const hasDescription = description.trim().length > 0;
+  input: { repo: RepoRef; issueNumbers: number[] },
+): Promise<{ source: IntentSource; issue?: IntentMaterials['issues'][number] }[]> {
+  const { repo, issueNumbers } = input;
+  if (issueNumbers.length === 0) return [];
 
-  const refs = parsePrReferences(description, {
-    owner: repo.owner,
-    name: repo.name,
-    refs: [pull.branch, pull.base],
-  });
-
-  // The client is resolved once, and only when there is something to fetch.
   let github: GitHubClient | null = null;
-  if (refs.issues.length + refs.documents.length > 0) {
-    try {
-      github = await deps.github();
-    } catch {
-      github = null;
-    }
+  try {
+    github = await deps.github();
+  } catch {
+    github = null;
   }
 
-  const issueResults = await Promise.all(
-    refs.issues.map(async (n): Promise<{ source: IntentSource; issue?: IntentMaterials['issues'][number] }> => {
+  return Promise.all(
+    issueNumbers.map(async (n): Promise<{ source: IntentSource; issue?: IntentMaterials['issues'][number] }> => {
       const ref = `${repo.owner}/${repo.name}#${n}`;
       if (!github) {
         return { source: { kind: 'issue', ref, status: 'unavailable', detail: NO_TOKEN_DETAIL } };
@@ -87,6 +82,41 @@ export async function collectIntentSources(
       }
     }),
   );
+}
+
+export async function collectIntentSources(
+  deps: { github: () => Promise<GitHubClient> },
+  input: { pull: PullInput; repo: RepoRef; diff: UnifiedDiff },
+): Promise<{ materials: IntentMaterials; sources: IntentSource[] }> {
+  const { pull, repo, diff } = input;
+  const description = pull.body ?? '';
+  const prRef = `#${pull.number}`;
+  const hasDescription = description.trim().length > 0;
+
+  const refs = parsePrReferences(description, {
+    owner: repo.owner,
+    name: repo.name,
+    refs: [pull.branch, pull.base],
+  });
+
+  // The client is resolved once (shared with the issue fetch), and only when
+  // there is something to fetch.
+  let pendingClient: Promise<GitHubClient> | undefined;
+  const sharedGithub = () => (pendingClient ??= deps.github());
+
+  const issueResults = await fetchLinkedIssues(
+    { github: sharedGithub },
+    { repo, issueNumbers: refs.issues },
+  );
+
+  let github: GitHubClient | null = null;
+  if (refs.documents.length > 0) {
+    try {
+      github = await sharedGithub();
+    } catch {
+      github = null;
+    }
+  }
 
   const documentResults = await Promise.all(
     refs.documents.map(

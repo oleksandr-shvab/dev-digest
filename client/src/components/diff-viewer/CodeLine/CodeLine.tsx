@@ -22,6 +22,7 @@ export function CodeLine({
   commenting,
   findings,
   findingApi,
+  focused = false,
 }: {
   ln: Line;
   path: string;
@@ -29,10 +30,17 @@ export function CodeLine({
   commenting?: DiffCommentApi;
   findings: FindingRecord[];
   findingApi?: DiffFindingApi;
+  /** This is the line the viewer was asked to focus. */
+  focused?: boolean;
 }) {
   const t = useTranslations("prReview");
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
+  const rowRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (focused) rowRef.current?.scrollIntoView({ block: "center" });
+  }, [focused]);
 
   if (ln.kind === "hunk") {
     return (
@@ -49,11 +57,13 @@ export function CodeLine({
 
   return (
     <div
+      ref={rowRef}
       style={cs.rowWrap}
+      aria-current={focused ? "location" : undefined}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={{ ...lineRowFor(ln.kind), ...(sev ? findingStripeFor(sev) : null) }}>
+      <div style={{ ...lineRowFor(ln.kind), ...(sev ? findingStripeFor(sev) : null), ...(focused ? s.lineFocused : null) }}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button

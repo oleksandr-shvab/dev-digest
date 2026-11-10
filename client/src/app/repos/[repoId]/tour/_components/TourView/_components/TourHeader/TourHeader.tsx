@@ -7,7 +7,8 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@devdigest/ui";
 import type { OnboardingIndexReadiness, OnboardingTour } from "@devdigest/shared";
-import { isPartialIndex, isStale, relativeAge } from "./helpers";
+import { relativeAge } from "@/lib/relative-age";
+import { isPartialIndex, isStale } from "./helpers";
 import { s } from "./styles";
 
 export function TourHeader({

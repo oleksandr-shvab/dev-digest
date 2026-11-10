@@ -11,3 +11,4 @@ export * from "./repo-intel";
 export * from "./blast";
 export * from "./project-context";
 export * from "./onboarding";
+export * from "./brief";

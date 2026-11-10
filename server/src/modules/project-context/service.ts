@@ -15,6 +15,7 @@ import {
   decodeUtf8,
   docTypeFor,
   isEligibleEntry,
+  orderAttachedPaths,
   planBudget,
   selectDocs,
   type CollectedDoc,
@@ -162,6 +163,29 @@ export class ProjectContextService {
     } catch {
       return allMissing();
     }
+  }
+
+  /**
+   * The workspace's attached docs for the PR brief: the ordered, deduplicated
+   * union over every agent (disabled ones included) of its own paths and its
+   * enabled skills' paths, read like a run reads them. Never throws.
+   */
+  async collectWorkspaceSpecs(
+    workspaceId: string,
+    repo: RepoRef,
+  ): Promise<CollectedProjectContext & { paths: string[] }> {
+    const { agents, links } = await this.repo.attachmentsForUsage(workspaceId);
+    const seen = new Set<string>();
+    const paths: string[] = [];
+    for (const agent of agents) {
+      const perSkill = links.filter((l) => l.agentId === agent.id).map((l) => l.contextPaths);
+      for (const path of orderAttachedPaths(agent.contextPaths, perSkill)) {
+        if (seen.has(path)) continue;
+        seen.add(path);
+        paths.push(path);
+      }
+    }
+    return { ...(await this.collectForRun({ repo, paths })), paths };
   }
 
   private tokensFor(blob: string, text: string): number {

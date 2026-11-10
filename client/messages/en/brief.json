@@ -42,5 +42,58 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "prBrief": {
+    "title": "PR Brief",
+    "generate": "Generate brief",
+    "regenerate": "Regenerate brief",
+    "emptyTitle": "No brief yet",
+    "emptyBody": "Generate a brief to see what this PR does, where it is risky and which files to read first. It makes one model call.",
+    "noFiles": "There are no changed files to brief.",
+    "generating": "Generating brief…",
+    "generated": "Brief ready.",
+    "failed": "Brief generation failed: {reason}",
+    "retry": "Try again",
+    "stale": "The PR has new commits since this brief was generated.",
+    "loadError": "Could not load the brief.",
+    "statusLabel": "PR brief status",
+    "riskAreas": "Risk areas",
+    "reviewFocus": "Review focus — read these first",
+    "severity": {
+      "high": "High risk",
+      "medium": "Medium risk",
+      "low": "Low risk"
+    },
+    "showExplanation": "Show explanation for {title}",
+    "openFile": "Open {file} in Files changed",
+    "openFileLine": "Open {file} line {line} in Files changed",
+    "notInDiff": "File not in this PR's diff",
+    "unavailableTitle": "Generated without",
+    "input": {
+      "intent": "Intent",
+      "blast_radius": "Blast radius",
+      "linked_issue": "Linked issue",
+      "specs": "Attached specs"
+    },
+    "omittedTitle": "Left out to fit the input budget",
+    "omitted": {
+      "spec": "Spec {ref}",
+      "issue_text": "Issue text ({ref})",
+      "pr_description": "PR description",
+      "caller_files": "{kept} of {total} caller files",
+      "findings": "{kept} of {total} findings",
+      "file_stats": "{kept} of {total} file statistics"
+    },
+    "meta": {
+      "tokens": "{tokensIn} → {tokensOut} tokens",
+      "costUnknown": "cost unknown",
+      "commit": "Generated for {sha} · {age}"
+    },
+    "age": {
+      "justNow": "just now",
+      "minutes": "{n}m ago",
+      "hours": "{n}h ago",
+      "days": "{n}d ago"
+    }
   }
 }

@@ -1,0 +1,43 @@
+{
+  "name": "PR Brief: the seeded stored brief on PR #482 and its links into Files changed",
+  "description": "Deterministic (no model call) read of the stored PR Brief on the Overview tab of the seeded PR #482 (server/src/db/seed-brief.ts). Checks the verdict banner, the summary, the Risk areas with their severity label, the Review focus list, the meta line (tokens, cost, commit) and that the Intent and Blast radius cards are still there. The icon-only 'Regenerate brief' button is only focused, never clicked. The flow NEVER clicks 'Generate brief' or 'Regenerate brief' (that makes a model call). It reloads the page to prove the stored brief shows again, then clicks a Review focus item and a risk file and checks that Files changed opens on that file with the seeded line text. Absence, order, count and busy-state checks live in the PrBriefCard component tests (agent-browser has no 'is absent' wait). Assumes a freshly-seeded DB (patches and the brief come from the seed); reads only, so it can run in any order.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+
+    { "cmd": ["wait", "--text", "PR Brief"], "label": "the PR Brief block renders on the Overview tab" },
+    { "cmd": ["wait", "--text", "Request changes"], "label": "verdict banner shows the newest review's verdict" },
+    { "cmd": ["wait", "--text", "Adds a token-bucket rate limiter in front of the public API"], "label": "the stored summary renders" },
+    { "cmd": ["wait", "--text", "Risk areas"], "label": "Risk areas heading" },
+    { "cmd": ["wait", "--text", "Secret set in plaintext in config"], "label": "a risk title renders" },
+    { "cmd": ["wait", "--text", "High risk"], "label": "the risk carries a visible severity label" },
+    { "cmd": ["wait", "--text", "Review focus — read these first"], "label": "Review focus heading" },
+    { "cmd": ["wait", "--text", "src/config.ts:12"], "label": "a focus item shows file:line" },
+    { "cmd": ["wait", "--text", "8,200 → 1,300 tokens"], "label": "meta shows the stored token counts" },
+    { "cmd": ["wait", "--text", "$0.014"], "label": "meta shows the stored cost" },
+    { "cmd": ["wait", "--text", "Generated for a1b2c3d"], "label": "meta shows the commit the brief was generated for" },
+    { "cmd": ["wait", "--text", "Intent"], "label": "the Intent card is still on the tab" },
+    { "cmd": ["wait", "--text", "Blast radius"], "label": "the Blast radius card is still on the tab" },
+    { "cmd": ["find", "role", "button", "focus", "--name", "Regenerate brief"], "label": "the regenerate control exists (focus only, not clicked)" },
+
+    { "cmd": ["open", "{BASE}/"], "label": "reload: load the app root again" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "reload: PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "reload: reopen the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "reload: PR detail route" },
+    { "cmd": ["wait", "--text", "Adds a token-bucket rate limiter in front of the public API"], "label": "reload: the stored summary shows again" },
+    { "cmd": ["wait", "--text", "src/config.ts:12"], "label": "reload: the focus item shows again" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Open src/config.ts line 12 in Files changed"], "label": "click the src/config.ts:12 focus item" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "Files changed is active in the URL" },
+    { "cmd": ["wait", "--url", "file="], "label": "the focused file is carried in the URL" },
+    { "cmd": ["wait", "--text", "seeded demo line 12"], "label": "the file is expanded: its line 12 text renders" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Overview"], "label": "back to the Overview tab" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Open src/middleware/ratelimit.ts in Files changed"], "label": "click the risk file button for src/middleware/ratelimit.ts" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "Files changed is active again" },
+    { "cmd": ["wait", "--text", "src/middleware/ratelimit.ts"], "label": "the file renders in the diff viewer" }
+  ]
+}

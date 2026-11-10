@@ -120,6 +120,13 @@
       "when": 1793694576506,
       "tag": "0016_lyrical_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794302267518,
+      "tag": "0017_clever_lightspeed",
+      "breakpoints": true
     }
   ]
 }

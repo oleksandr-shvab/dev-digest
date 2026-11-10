@@ -7,7 +7,15 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { PrFile } from "@/lib/types";
 import { AUTO_EXPAND_MAX_LINES } from "../constants";
-import { parsePatch, type Line } from "../helpers";
+import {
+  focusKey,
+  isFocusedFile,
+  isFocusedLine,
+  parsePatch,
+  shouldScrollToCard,
+  type DiffFocus,
+  type Line,
+} from "../helpers";
 import {
   buildThreads,
   keysForLine,
@@ -36,10 +44,13 @@ export function FileCard({
   file,
   commenting,
   findingApi,
+  focus,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
   findingApi?: DiffFindingApi;
+  /** File (and line) to open, scroll to and mark. */
+  focus?: DiffFocus | null;
 }) {
   const t = useTranslations("shell");
   const tReview = useTranslations("prReview");
@@ -47,6 +58,22 @@ export function FileCard({
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+
+  // Open once per new focus target: adjust state while rendering (not in an effect),
+  // so the user can still collapse the card afterwards.
+  const targeted = isFocusedFile(focus, file.path);
+  const targetKey = targeted ? focusKey(focus) : null;
+  const [seenFocusKey, setSeenFocusKey] = React.useState<string | null>(null);
+  if (targetKey !== seenFocusKey) {
+    setSeenFocusKey(targetKey);
+    if (targetKey) setOpen(true);
+  }
+
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const scrollToCard = shouldScrollToCard(focus, file.path, lines);
+  React.useEffect(() => {
+    if (targetKey && open && scrollToCard) rootRef.current?.scrollIntoView({ block: "start" });
+  }, [targetKey, open, scrollToCard]);
 
   const renderedKeys = React.useMemo(() => {
     const keys = new Set<string>();
@@ -79,7 +106,11 @@ export function FileCard({
     : 0;
 
   return (
-    <div style={s.fileCard}>
+    <div
+      ref={rootRef}
+      style={targeted ? { ...s.fileCard, ...s.fileCardFocused } : s.fileCard}
+      aria-current={targeted ? "location" : undefined}
+    >
       <div
         role="button"
         tabIndex={0}
@@ -125,6 +156,7 @@ export function FileCard({
                 commenting={commenting}
                 findings={findingsForLine(ln, matchedFindings)}
                 findingApi={findingApi}
+                focused={isFocusedLine(focus, file.path, ln)}
               />
             ))
           )}

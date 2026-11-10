@@ -15,6 +15,12 @@ import {
   SEED_ONBOARDING_TOUR,
   SEED_TOUR_COMMIT_SHA,
 } from './seed-onboarding.js';
+import {
+  SEED_BRIEF_HEAD_SHA,
+  SEED_BRIEF_META,
+  SEED_PR_BRIEF,
+  SEED_PR_FILE_PATCHES,
+} from './seed-brief.js';
 import { INDEXER_VERSION } from '../modules/repo-intel/constants.js';
 
 /** Default provider/model for the built-in reviewer agents. */
@@ -35,7 +41,8 @@ const SEED_SECURITY_BASELINE_DOC =
  * provider+model), and PR #482 with files/commits, a sample review with a
  * few findings, and a finished multi-agent run batch (so the PR list COST
  * column, the Agent Runs timeline, and a run's trace drawer all have real
- * data to show without needing an LLM key).
+ * data to show without needing an LLM key). PR #482 also gets real file
+ * patches and a stored PR Brief for its head commit (see ./seed-brief.ts).
  *
  * Course lessons populate the other tables (skills, conventions, memory, eval,
  * …) once their features are built — they start empty here.
@@ -248,12 +255,17 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .returning();
 
     // pr_files (subset)
-    await db.insert(t.prFiles).values([
-      { prId: pr!.id, path: 'src/middleware/ratelimit.ts', additions: 84, deletions: 0 },
-      { prId: pr!.id, path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
-      { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0 },
-      { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2 },
-    ]);
+    // Real unified-diff patches (./seed-brief.ts) so the Files changed tab and
+    // the PR Brief's "first changed line" have a diff to work on.
+    const seedFiles = [
+      { path: 'src/middleware/ratelimit.ts', additions: 84, deletions: 0 },
+      { path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
+      { path: 'src/config.ts', additions: 4, deletions: 0 },
+      { path: 'src/api/users.ts', additions: 7, deletions: 2 },
+    ];
+    await db
+      .insert(t.prFiles)
+      .values(seedFiles.map((f) => ({ prId: pr!.id, ...f, patch: SEED_PR_FILE_PATCHES[f.path] })));
 
     // pr_commits
     await db.insert(t.prCommits).values({
@@ -503,6 +515,22 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       commitSha: SEED_TOUR_COMMIT_SHA,
       indexFileCount: SEED_INDEX_FILE_COUNT,
       indexStatus: 'partial',
+    })
+    .onConflictDoNothing();
+
+  // ---- demo PR Brief for PR #482 (SPEC-03), stored against the PR's head so it
+  // is not stale. e2e only reads it. `onConflictDoNothing` keeps re-seeding
+  // idempotent and leaves a brief the user generated since untouched.
+  await db
+    .insert(t.prBrief)
+    .values({
+      prId: pr!.id,
+      json: SEED_PR_BRIEF,
+      headSha: SEED_BRIEF_HEAD_SHA,
+      generatedAt: new Date(),
+      ...SEED_BRIEF_META,
+      unavailableInputs: [{ kind: 'intent', ref: null }],
+      omittedInputs: [],
     })
     .onConflictDoNothing();
 

@@ -3,7 +3,12 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { SectionLabel, Button, Chip } from "@devdigest/ui";
-import { DiffViewer, type DiffCommentApi, type DiffFindingApi } from "@/components/diff-viewer";
+import {
+  DiffViewer,
+  type DiffCommentApi,
+  type DiffFindingApi,
+  type DiffFocus,
+} from "@/components/diff-viewer";
 import {
   usePrComments,
   useCreatePrComment,
@@ -23,9 +28,11 @@ interface DiffTabProps {
   files: PrFile[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** File (and line) the Overview tab asked to open; carried by the page URL. */
+  focus?: DiffFocus | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, focus }: DiffTabProps) {
   const t = useTranslations("prReview");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -113,11 +120,12 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
               filesWithFindings={countFilesWithFindings(g.files, findings)}
               commenting={commenting}
               findingApi={findingApi}
+              focus={focus}
             />
           ))}
         </div>
       ) : (
-        <DiffViewer files={files} commenting={commenting} findingApi={findingApi} />
+        <DiffViewer files={files} commenting={commenting} findingApi={findingApi} focus={focus} />
       )}
     </section>
   );

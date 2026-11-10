@@ -20,6 +20,7 @@ vi.mock("@/lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: h.mutate, isPending: false }),
 }));
 
+import type { DiffFocus } from "@/components/diff-viewer";
 import { DiffTab } from "./DiffTab";
 
 afterEach(cleanup);
@@ -85,10 +86,10 @@ function review(id: string, created_at: string, findings: FindingRecord[]): Revi
   };
 }
 
-function renderTab() {
+function renderTab(focus?: DiffFocus | null) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ shell, prReview }}>
-      <DiffTab prId="pr-1" filesCount={FILES.length} files={FILES} canComment />
+      <DiffTab prId="pr-1" filesCount={FILES.length} files={FILES} canComment focus={focus} />
     </NextIntlClientProvider>,
   );
 }
@@ -154,5 +155,41 @@ describe("DiffTab (Smart Diff)", () => {
     expect(screen.getByText("Review not run yet")).toBeInTheDocument();
     expect(screen.queryByLabelText(/files with findings/)).not.toBeInTheDocument();
     expect(screen.getAllByText(HEADERS)).toHaveLength(5);
+  });
+});
+
+describe("DiffTab focus", () => {
+  it("opens the collapsed group holding the focused file and scrolls to it, and the group can still be collapsed", async () => {
+    h.reviews = [];
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const user = userEvent.setup();
+    // README.md is in the Docs group, which starts collapsed.
+    renderTab({ path: "README.md", line: null });
+
+    const group = screen.getByText("Docs").closest('[role="button"]')!;
+    expect(group).toHaveAttribute("aria-expanded", "true");
+    const fileHeader = screen.getByText("README.md").closest('[role="button"]')!;
+    expect(fileHeader).toHaveAttribute("aria-expanded", "true");
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    await user.click(group);
+    expect(group).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("README.md")).not.toBeInTheDocument();
+  });
+
+  it("marks the focused line, in Smart order and in the flat Original order", async () => {
+    h.reviews = [];
+    Element.prototype.scrollIntoView = vi.fn();
+    const user = userEvent.setup();
+    renderTab({ path: "src/z.ts", line: 3 });
+
+    // new line 3 of src/z.ts is the added `c` row: its nearest aria-current ancestor is the row, not the card
+    const marked = () => screen.getByText("c").closest('[aria-current="location"]')!;
+    expect(marked()).not.toHaveTextContent("src/z.ts");
+    expect(screen.getByText("b").closest('[aria-current="location"]')).not.toBe(marked());
+
+    await user.click(screen.getByRole("button", { name: "Original order" }));
+    expect(marked()).not.toHaveTextContent("src/z.ts");
   });
 });

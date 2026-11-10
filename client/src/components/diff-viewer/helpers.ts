@@ -28,6 +28,9 @@ export function parsePatch(patch: string | null | undefined): Line[] {
     } else if (raw.startsWith("-")) {
       out.push({ kind: "del", text: raw.slice(1), oldNo });
       oldNo++;
+    } else if (raw.startsWith("\\")) {
+      // "\ No newline at end of file": neither added, removed nor context, and it has no line number.
+      continue;
     } else {
       out.push({ kind: "ctx", text: raw.slice(raw.startsWith(" ") ? 1 : 0), oldNo, newNo });
       oldNo++;
@@ -35,4 +38,30 @@ export function parsePatch(patch: string | null | undefined): Line[] {
     }
   }
   return out;
+}
+
+/** A file (and optionally a new-side line) the viewer should open, scroll to and mark. */
+export interface DiffFocus {
+  path: string;
+  line: number | null;
+}
+
+/** Stable identity of a focus target; a new key means "open and scroll again". */
+export function focusKey(f: DiffFocus | null | undefined): string | null {
+  return f ? `${f.path}:${f.line ?? ""}` : null;
+}
+
+export function isFocusedFile(focus: DiffFocus | null | undefined, path: string): boolean {
+  return !!focus && focus.path === path;
+}
+
+/** The focus line is a new-side number, so deletions and hunk headers never match. */
+export function isFocusedLine(focus: DiffFocus | null | undefined, path: string, ln: Line): boolean {
+  if (!focus || focus.path !== path || focus.line === null) return false;
+  return ln.kind !== "hunk" && ln.kind !== "del" && ln.newNo === focus.line;
+}
+
+/** The file is focused but no rendered line carries the target, so the card itself is scrolled to. */
+export function shouldScrollToCard(focus: DiffFocus | null | undefined, path: string, lines: Line[]): boolean {
+  return isFocusedFile(focus, path) && !lines.some((ln) => isFocusedLine(focus, path, ln));
 }
