@@ -14,6 +14,7 @@ prompts.
 | [implementer](implementer.md) | Executes an approved plan and verifies its own diff | `sonnet` | Read, Edit, Write, Grep, Glob, Bash, Skill | none — loads each step's skills with Skill |
 | [plan-verifier](plan-verifier.md) | Checks the finished code against every item of a plan; pass, fail or unverified with evidence | `sonnet` | Read, Grep, Glob, Bash | none |
 | [architecture-reviewer](architecture-reviewer.md) | Checks architectural boundaries; findings with quoted code and quoted rule | `sonnet` | Read, Grep, Glob | `onion-architecture`, `frontend-ui-architecture`, `next-best-practices` |
+| [architecture-reviewer-lite](architecture-reviewer-lite.md) | Eval-only variant of `architecture-reviewer`: the rule citation per finding is optional; used for the strict-vs-lite A/B in `evals/` | `sonnet` | Read, Grep, Glob | `onion-architecture`, `frontend-ui-architecture`, `next-best-practices` |
 | [test-writer](test-writer.md) | Writes and runs tests for existing code, in test files only | `sonnet` | Read, Grep, Glob, Edit, Write, Bash | none — reads the testing skill of the module with Read |
 | [doc-writer](doc-writer.md) | Documents implemented features with diagrams, in the module's `docs/` and README maps | `sonnet` | Read, Grep, Glob, Write, Edit | `mermaid-diagram` |
 

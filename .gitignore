@@ -31,3 +31,11 @@ test-results/
 
 # /run-plan state (resume logs)
 .claude/run-plan-logs/
+
+# skill evals: run output and skill-creator iterations stay local.
+# Cases + fixtures live in .claude/skills/<skill>/evals/ and are committed;
+# build/ is the claude-plugin-eval suite generated from them by run.sh.
+.claude/skill-evals/results/
+.claude/skill-evals/workspace/
+.claude/skill-evals/build/
+.claude/skills/*/evals/results/

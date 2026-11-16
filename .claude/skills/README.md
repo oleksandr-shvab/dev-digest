@@ -17,6 +17,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [zod](zod/SKILL.md) | Full-stack | Zod schema validation, parsing, error handling, type inference |
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
+| [dependency-checker](dependency-checker/SKILL.md) | Full-stack | Dependency report for the repo and each package: scope, Mermaid graph (internal vs external), installed sizes, findings ranked P0/P1/P2/Info with concrete advice; read-only, backed by `scripts/collect.mjs` |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [spec-creator](spec-creator/SKILL.md) | Meta | `/spec-creator`: feature-spec with traced, prioritized EARS criteria in the touched module's `specs/` (root `specs/` when cross-module); analyzes designs, runs parallel researchers, self-checks with `scripts/check-spec.mjs`, approves on confirmation |
 | [run-plan](run-plan/SKILL.md) | Meta | `/run-plan plan:<path> [mode:single] [max-fix:N]`: runs an approved plan autonomously — implementers by the plan's dependency graph and owned paths → architecture-reviewer ‖ plan-verifier → bounded fix loop → report and a `/pr-self-review` recommendation; never pushes. Spec, plan and test-writer are run by hand |

@@ -28,6 +28,7 @@ and web run on the host via `pnpm dev`.
 | `reviewer-core/` | `@devdigest/reviewer-core`  | Pure review engine: diff → prompt → LLM → findings  |
 | `e2e/`           | `@devdigest/e2e`            | Deterministic browser e2e (agent-browser, no LLM)   |
 | `mcp-server/`    | `@devdigest/mcp-server`     | Local stdio MCP server — DevDigest tools for Claude Code over the local API |
+| `evals/`         | `@devdigest/evals`          | Harness evals (skills, agents, workflow) — vitest + Claude Agent SDK, own `package.json` |
 | `docs/agent-prompts/` | —                       | Reviewer system-prompt content, read at runtime by `reviewer-core` — not agent docs |
 
 Each module folder above has its own `CLAUDE.md` (auto-loaded when you touch
@@ -50,6 +51,34 @@ this file.
 - `devdigest_pgdata` docker volume — never `docker compose down -v` to "reset"
   your DB; it deletes every imported repo/review. See `e2e/README.md` for the
   hermetic alternative used by e2e.
+
+## Evals
+
+The harness itself (skills, agents, `CLAUDE.md` routing) is tested by
+[`evals/`](evals/) — a separate pnpm package, installed with
+`cd evals && pnpm install`. Run these from `evals/`:
+
+```sh
+pnpm eval:quality                                   # static structure check, no model (blocking in CI)
+pnpm eval:skills | eval:agents | eval:workflow      # model runs: skill content, agent content, real session
+pnpm eval:repeat <pattern> -n 5 --label <name>      # stability of one thing (EVAL_REPEAT_MAX=5 lifts the 2-run cap)
+pnpm eval:delta <baseline> <candidate>              # before/after a change; capture the baseline BEFORE editing
+pnpm eval:benchmark <pattern> -n 5                  # with vs without the artifact
+```
+
+Which check after which change:
+
+| Change | Minimum check |
+|---|---|
+| `.claude/skills/**` | `eval:quality` + that skill's eval (`pnpm exec vitest run skills/<name>`) |
+| `.claude/agents/**` | that agent's eval + the relevant workflow case |
+| `CLAUDE.md` or routing rules | `eval:workflow` |
+| an eval case, grader or fixture | re-run the baseline (`eval:repeat … --label baseline`) before trusting any delta |
+
+Model runs spend subscription or OpenRouter credits: set `-n` and
+`EVAL_REPEAT_MAX` on purpose. CI runs only the suites a PR touches
+(`.github/workflows/evals.yml`); an artifact without evals is logged as
+SKIP, not failed.
 
 ## Session protocol (before answering)
 

@@ -1,0 +1,270 @@
+{
+  "skill": "onion-architecture",
+  "fixtureRoots": {
+    "modules": "server/src/modules",
+    "adapters": "server/src/adapters",
+    "reviewer-core": "reviewer-core/src",
+    "vendor": "server/src/vendor"
+  },
+  "output": "review.md",
+  "commonChecks": [
+    "Every problem in the main findings list or table of review.md has an explicit severity level (side notes outside that list do not count)."
+  ],
+  "cases": [
+    {
+      "id": "review-tags-module",
+      "prompt": "I added a new tags module to the backend (server/src/modules/tags — routes, service, repository). Before I open the PR, can you check whether it fits how our backend is supposed to be layered? List each problem with the file, the line, why it's a problem and how to fix it, and how serious it is. Write the review to review.md.",
+      "files": [
+        "modules/tags/routes.ts",
+        "modules/tags/service.ts",
+        "modules/tags/repository.ts"
+      ],
+      "findings": [
+        {
+          "id": "route-db-access",
+          "file": "modules/tags/routes.ts",
+          "lines": "42-61",
+          "rule": "Thin Routes",
+          "severity": "CRITICAL",
+          "assertion": "review.md flags the DELETE /tags/:id handler in routes.ts for querying or deleting through container.db / the Drizzle schema directly instead of calling TagService."
+        },
+        {
+          "id": "concrete-octokit-in-service",
+          "file": "modules/tags/service.ts",
+          "lines": "3, 35",
+          "rule": "Dependency Rule; Composition Root Is the Only new",
+          "severity": "CRITICAL",
+          "assertion": "review.md flags service.ts for importing the concrete OctokitGitHubClient adapter and constructing it with new, and says to use the GitHubClient port from the container (container.github()) instead."
+        },
+        {
+          "id": "drizzle-query-in-service",
+          "file": "modules/tags/service.ts",
+          "lines": "40-43",
+          "rule": "Repository Owns Persistence",
+          "severity": "HIGH",
+          "assertion": "review.md flags syncLabelsFromGitHub in service.ts for building a Drizzle query on t.tags itself instead of calling a TagRepository method."
+        }
+      ],
+      "mustNotFlag": [
+        {
+          "file": "modules/tags/repository.ts",
+          "assertion": "review.md does not report repository.ts as a layering violation."
+        }
+      ]
+    },
+    {
+      "id": "review-reviewer-core-changes",
+      "prompt": "Here's a change to reviewer-core: run.ts now pulls repo notes and can add a short summary of the findings, and I split severity sorting into its own file. Review the changed files only for architecture/dependency problems, not style. For each one give file, line, why it matters, a fix and a severity. Write it to review.md.",
+      "files": [
+        "reviewer-core/review/run.ts",
+        "reviewer-core/review/repo-notes.ts",
+        "reviewer-core/review/budget.ts",
+        "reviewer-core/output/severity.ts"
+      ],
+      "findings": [
+        {
+          "id": "fs-read-in-core",
+          "file": "reviewer-core/review/repo-notes.ts",
+          "lines": "1, 10",
+          "rule": "reviewer-core Purity",
+          "severity": "CRITICAL",
+          "assertion": "review.md flags repo-notes.ts (or its call from run.ts) for reading the filesystem via node:fs inside reviewer-core, which must have no I/O beyond the injected LLMProvider."
+        },
+        {
+          "id": "core-imports-server",
+          "file": "reviewer-core/output/severity.ts",
+          "lines": "2",
+          "rule": "Dependency Rule",
+          "severity": "CRITICAL",
+          "assertion": "review.md flags output/severity.ts for importing from server/src (an outer package) into reviewer-core."
+        },
+        {
+          "id": "direct-openai-client",
+          "file": "reviewer-core/review/run.ts",
+          "lines": "51-59",
+          "rule": "reviewer-core Purity; Port-Interface-First",
+          "severity": "CRITICAL",
+          "assertion": "review.md flags run.ts for constructing an OpenAI client (new OpenAI / process.env.OPENAI_API_KEY) instead of using the injected input.llm LLMProvider."
+        }
+      ],
+      "mustNotFlag": [
+        {
+          "file": "reviewer-core/review/budget.ts",
+          "assertion": "review.md does not report budget.ts as an architecture violation."
+        }
+      ]
+    },
+    {
+      "id": "review-llm-spend-cap",
+      "prompt": "I built a monthly LLM spend cap: a budgeted Anthropic provider, a usage module with routes/service/repository, and an estimate endpoint. Does the code sit in the right layers? Tell me what is in the wrong place and where it should move, with file, line and severity for each point. Write the review to review.md.",
+      "files": [
+        "adapters/llm/budgeted-anthropic.ts",
+        "modules/usage/routes.ts",
+        "modules/usage/service.ts",
+        "modules/usage/repository.ts"
+      ],
+      "findings": [
+        {
+          "id": "adapter-owns-db-and-policy",
+          "file": "adapters/llm/budgeted-anthropic.ts",
+          "lines": "61-91",
+          "rule": "Repository Owns Persistence; adapters stay dumb I/O wrappers",
+          "severity": "HIGH",
+          "assertion": "review.md flags budgeted-anthropic.ts for an adapter that reads/writes the database (Drizzle schema, agentRuns, notifications, llmUsage) and/or makes budget decisions (cap check, 80% warning, retries) that belong in a service or repository."
+        },
+        {
+          "id": "anemic-service",
+          "file": "modules/usage/service.ts",
+          "lines": "11-25",
+          "rule": "Avoid Anemic Services",
+          "severity": "MEDIUM",
+          "assertion": "review.md flags UsageService as an anemic service whose methods only pass through to the repository while the real decisions live elsewhere."
+        },
+        {
+          "id": "route-logic-and-concrete-tokenizer",
+          "file": "modules/usage/routes.ts",
+          "lines": "38-53",
+          "rule": "Thin Routes; Dependency Rule",
+          "severity": "CRITICAL",
+          "assertion": "review.md flags the /usage/estimate handler in routes.ts for holding business logic (the pricing table, cost estimate or allowed/warn decision) or for importing and constructing the concrete TiktokenTokenizer adapter."
+        }
+      ],
+      "extraChecks": [
+        "review.md says concretely where the moved logic should go: the cap/estimate decisions into UsageService (or another service) and persistence into the repository."
+      ],
+      "mustNotFlag": [
+        {
+          "file": "modules/usage/repository.ts",
+          "assertion": "review.md does not report UsageRepository (repository.ts) as a layering violation."
+        }
+      ]
+    },
+    {
+      "id": "review-digest-module",
+      "prompt": "I added a weekly digest module to the backend (server/src/modules/digest — routes, service, repository): it summarises which PRs got reviewed this week, the critical findings per PR and the files with the most findings. Can you review it for how well it fits our backend architecture before I open the PR? For each problem give the file, the line, why it's a problem, the fix and a severity. Write the review to review.md.",
+      "files": [
+        "modules/digest/routes.ts",
+        "modules/digest/service.ts",
+        "modules/digest/repository.ts"
+      ],
+      "findings": [
+        {
+          "id": "constructs-foreign-repository",
+          "file": "modules/digest/service.ts",
+          "lines": "3, 27",
+          "rule": "Module Boundaries",
+          "severity": "HIGH",
+          "assertion": "review.md flags service.ts for importing ReviewRepository from the reviews module and constructing it with new, and says to use container.reviewRepo instead."
+        },
+        {
+          "id": "constructs-foreign-service",
+          "file": "modules/digest/service.ts",
+          "lines": "5, 28",
+          "rule": "Module Boundaries",
+          "severity": "HIGH",
+          "assertion": "review.md flags service.ts for importing AgentsService from the agents module and constructing it with new, and says to use container.agentsRepo (or another container seam) instead."
+        },
+        {
+          "id": "queries-foreign-tables",
+          "file": "modules/digest/repository.ts",
+          "lines": "10-44",
+          "rule": "Module Boundaries",
+          "severity": "HIGH",
+          "assertion": "review.md flags repository.ts (reviewedPullIds and/or topFindingFiles) for querying the reviews and findings tables, which the reviews module owns, and says to move those queries into ReviewRepository behind container.reviewRepo."
+        }
+      ],
+      "extraChecks": [
+        "review.md does not flag the import of pickLatestReviewPerAgent from ../reviews/smart-diff/build.js as a violation."
+      ],
+      "mustNotFlag": [
+        {
+          "file": "modules/digest/routes.ts",
+          "assertion": "review.md does not report routes.ts as a layering violation."
+        }
+      ]
+    },
+    {
+      "id": "review-alerts-module",
+      "prompt": "I added an alerts feature to the backend: a new alerts module (server/src/modules/alerts) that posts to Slack when a PR review has blocking findings, a Notifier port in vendor/shared with a Slack adapter, and a small incidents/stats.ts in the neighbouring incidents module that the alerts rules use. Review the change for architecture problems before I open the PR. For each problem give the file, the line, why it's a problem, the fix and a severity. Write the review to review.md.",
+      "files": [
+        "modules/alerts/routes.ts",
+        "modules/alerts/service.ts",
+        "modules/alerts/delivery.ts",
+        "modules/alerts/recipients.ts",
+        "modules/alerts/rules.ts",
+        "modules/alerts/repository.ts",
+        "modules/alerts/constants.ts",
+        "modules/alerts/formatters.ts",
+        "modules/alerts/dedupe.ts",
+        "modules/alerts/types.ts",
+        "modules/incidents/stats.ts",
+        "adapters/slack/slack-notifier.ts",
+        "vendor/shared/notifier.ts"
+      ],
+      "findings": [
+        {
+          "id": "adapter-via-helper",
+          "file": "modules/alerts/delivery.ts",
+          "lines": "2, 16",
+          "rule": "Indirect Violations: helper inherits the importer's ring",
+          "severity": "HIGH",
+          "assertion": "review.md flags modules/alerts/delivery.ts for importing and constructing the concrete SlackNotifier adapter, and says to get the Notifier port from the container (a container getter) instead."
+        },
+        {
+          "id": "drizzle-in-helper",
+          "file": "modules/alerts/recipients.ts",
+          "lines": "1-20",
+          "rule": "Repository Owns Persistence; Indirect Violations",
+          "severity": "HIGH",
+          "assertion": "review.md flags modules/alerts/recipients.ts for importing drizzle-orm and the db schema and querying container.db directly, and says the query belongs in AlertRepository."
+        },
+        {
+          "id": "port-leaks-sdk-types",
+          "file": "vendor/shared/notifier.ts",
+          "lines": "1, 11-12",
+          "rule": "Indirect Violations: ports do not leak vendor types",
+          "severity": "HIGH",
+          "assertion": "review.md flags the Notifier port in vendor/shared/notifier.ts for importing and returning @slack/web-api types (ChatPostMessageResponse, ConversationsListResponse), and says the adapter should map them to types the port owns."
+        },
+        {
+          "id": "module-cycle",
+          "file": "modules/alerts/rules.ts",
+          "lines": "3",
+          "rule": "Indirect Violations: no cycles between modules",
+          "severity": "MEDIUM",
+          "assertion": "review.md reports the dependency cycle between the alerts and incidents modules (alerts/rules.ts imports incidents/stats.ts, and incidents/stats.ts imports alerts/constants.ts and alerts/types.ts) and proposes moving the shared thresholds and types to a place neither module owns."
+        },
+        {
+          "id": "route-constructs-adapter",
+          "file": "modules/alerts/routes.ts",
+          "lines": "4, 30",
+          "rule": "Dependency Rule; Composition Root Is the Only new",
+          "severity": "CRITICAL",
+          "assertion": "review.md flags modules/alerts/routes.ts for importing and constructing the concrete SlackNotifier in the /alerts/test-send handler."
+        }
+      ],
+      "extraChecks": [
+        "review.md states the import chain for the delivery.ts finding (service.ts imports delivery.ts, which imports SlackNotifier), or says that delivery.ts is application-layer code because service.ts imports it.",
+        "review.md reports the sources of the planted findings in at least three different files, not only in service.ts, routes.ts and repository.ts."
+      ],
+      "mustNotFlag": [
+        {
+          "file": "modules/alerts/repository.ts",
+          "assertion": "review.md does not report modules/alerts/repository.ts as a violation."
+        },
+        {
+          "file": "adapters/slack/slack-notifier.ts",
+          "assertion": "review.md does not report adapters/slack/slack-notifier.ts as a violation for importing the Slack SDK."
+        },
+        {
+          "file": "modules/alerts/service.ts",
+          "assertion": "review.md does not report service.ts's use of container.reviewRepo (getPull, reviewsForPull) or its import of pickLatestReviewPerAgent as a module-boundary violation."
+        },
+        {
+          "file": "modules/alerts/formatters.ts",
+          "assertion": "review.md does not report formatters.ts, dedupe.ts, constants.ts or types.ts in the alerts module as violations."
+        }
+      ]
+    }
+  ]
+}
